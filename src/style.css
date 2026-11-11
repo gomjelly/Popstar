@@ -1187,3 +1187,91 @@ button:disabled {
   transform: none;
   box-shadow: 0 0 0 0.4vh var(--accent);
 }
+
+/* ---------- 명예의 전당 ---------- */
+.pod-photos {
+  display: flex;
+  gap: 1vh;
+  justify-content: center;
+}
+.pod-photo {
+  position: relative;
+  border: 0.6vh solid rgba(255, 255, 255, 0.5);
+  overflow: visible;
+}
+.pod-photo img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.pod.p1 .pod-photo {
+  width: 19vh;
+  height: 19vh;
+}
+.pod-photos .pod-photo + .pod-photo {
+  margin-left: -2vh;
+}
+.crown {
+  position: absolute;
+  top: -7vh;
+  left: 50%;
+  transform: translateX(-50%) rotate(-8deg);
+  font-size: 9vh;
+  filter: drop-shadow(0 0.5vh 0 rgba(0, 0, 0, 0.3));
+}
+.pod-name {
+  white-space: nowrap;
+}
+.pod-score {
+  font-size: 5.5vh;
+  color: var(--accent);
+  line-height: 1;
+}
+.pod-date {
+  font-size: 2.8vh;
+  color: var(--muted);
+}
+.podium {
+  margin-top: 6vh;
+}
+.pod.p1 .pod-block {
+  height: 18vh;
+}
+.pod.p2 .pod-block {
+  height: 12vh;
+}
+.pod.p3 .pod-block {
+  height: 8vh;
+}
+.hall-rest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5vh 3vw;
+  justify-content: center;
+  font-size: 3vh;
+  color: var(--muted);
+  max-width: 90vw;
+}
+.hall-msg {
+  font-size: 3.6vh;
+  color: var(--muted);
+  margin-bottom: 2vh;
+  min-height: 1em;
+}
+.hall-msg.top {
+  font-size: 6vh;
+  color: #ffd84d;
+  animation: pop-in-static 0.5s ease-out;
+}
+@keyframes pop-in-static {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+.pod-block {
+  font-size: 6vh;
+  align-items: center;
+  padding-top: 0;
+}

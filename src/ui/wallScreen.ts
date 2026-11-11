@@ -21,6 +21,7 @@ import {
 import { liveJoints } from '../game/wall/profile';
 import { WallView } from '../game/wall/view';
 import { AutoPause } from './autoPause';
+import { registerHall } from './hallResult';
 import { pauseKeys } from './screens';
 
 type Phase = 'countdown' | 'approach' | 'result';
@@ -307,8 +308,10 @@ export class WallScreen implements Screen {
     this.app.log(`wall result total=${total} perfect=${perfect}/${this.results.length}`);
     const s = this.app.session;
     if (s) {
+      const playId = crypto.randomUUID();
+      void registerHall(this.app, { game: s.game, participants: s.participants, scores: [total], stage: perfect, playId }, $('wrHall'));
       void savePlay({
-        id: crypto.randomUUID(),
+        id: playId,
         game: s.game,
         startedAt: this.startedAt,
         endedAt: new Date().toISOString(),

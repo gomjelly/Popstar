@@ -3,6 +3,7 @@
 import { $, App, FLOOR_Y, type AvatarMode, type Screen } from '../app';
 import { GAMES, PLAYER_COLORS, config, gameInfo, type GameId } from '../config';
 import { MAX_NAME, addPlayer, autoColor, checkName, colorHex, listPlayers, nameLength, type PlayerRecord } from '../data/db';
+import { listHall } from '../data/hall';
 import { frameProblem, measure, type FrameProblem } from '../pose/body';
 import { LM, dist, mid, type Pt } from '../pose/landmarks';
 import { calibTargetX } from '../pose/transform';
@@ -150,6 +151,16 @@ export class SelectScreen implements Screen {
     const btn = $<HTMLButtonElement>('selectStart');
     btn.disabled = this.picks.length < this.need;
     btn.textContent = this.picks.length < this.need ? `${this.need - this.picks.length}명 더 골라요` : '시작!';
+  }
+
+  /** 검증용: 등록 플레이어를 앞에서부터 고르고 모자라면 손님으로 */
+  async fillPlayers(): Promise<void> {
+    const players = await listPlayers();
+    for (const p of players) {
+      if (this.picks.length >= this.need) break;
+      this.picks.push({ key: p.id, player: p });
+    }
+    this.fillGuests();
   }
 
   /** 테스트·키보드용: 손님으로 채우기 */
@@ -460,21 +471,92 @@ export class HallScreen implements Screen {
   readonly el = $('scr-hall');
   readonly avatarMode = 'menu' as const;
   readonly backTo = 'main' as const;
+  private game: GameId = 'wall';
+  private urls: string[] = [];
+
   constructor(app: App) {
     const tabs = $('hallTabs');
     const labels: Record<GameId, string> = { wall: '벽 뚫기', 'balloon-1p': '풍선 1인', 'balloon-coop': '풍선 2인 협동', 'balloon-versus': '풍선 2인 대결' };
     for (const g of GAMES) {
       const b = el('button', 'hov tab', labels[g.id]);
       b.dataset.name = `tab-${g.id}`;
+      b.dataset.game = g.id;
       b.addEventListener('click', () => {
-        tabs.querySelectorAll('.tab').forEach((t) => t.classList.toggle('selected', t === b));
         app.sound.play('select');
+        void this.show(g.id);
       });
       tabs.appendChild(b);
     }
-    tabs.firstElementChild?.classList.add('selected');
   }
-  enter(): void {}
+
+  /** arg = 처음 보여 줄 게임 탭 */
+  async enter(arg?: string): Promise<void> {
+    await this.show((GAMES.find((g) => g.id === arg)?.id ?? this.game) as GameId);
+  }
+
+  leave(): void {
+    this.urls.forEach((u) => URL.revokeObjectURL(u));
+    this.urls = [];
+  }
+
+  /** 1~3위 시상대(사진·이름·점수·날짜, 1위 왕관)와 4~10위 목록 */
+  private async show(game: GameId): Promise<void> {
+    this.game = game;
+    $('hallTabs')
+      .querySelectorAll<HTMLElement>('.tab')
+      .forEach((t) => t.classList.toggle('selected', t.dataset.game === game));
+    this.leave();
+    const [rows, players] = await Promise.all([listHall(game), listPlayers()]);
+    const photo = new Map<string, string>();
+    for (const p of players) {
+      if (!p.photoBlob) continue;
+      const u = URL.createObjectURL(p.photoBlob);
+      this.urls.push(u);
+      photo.set(p.id, u);
+    }
+    const podium = $('hallPodium');
+    podium.innerHTML = '';
+    const isBalloon = game.startsWith('balloon');
+    const versus = game === 'balloon-versus';
+    const date = (iso: string) => {
+      const d = new Date(iso);
+      return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+    };
+    // 2위 · 1위 · 3위 순서로 놓는다
+    for (const rank of [2, 1, 3]) {
+      const r = rows[rank - 1];
+      const pod = el('div', `pod p${rank}`);
+      const pics = el('div', 'pod-photos');
+      const ids = r ? r.playerIds : [null];
+      ids.forEach((id, i) => {
+        const u = id ? photo.get(id) : undefined;
+        const ph = el('div', 'pod-photo');
+        if (r) ph.style.borderColor = r.colors[i] ?? '#fff';
+        if (u) {
+          const img = el('img');
+          img.src = u;
+          ph.appendChild(img);
+        } else ph.textContent = r ? '🙂' : '?';
+        if (rank === 1 && r && i === 0) ph.appendChild(el('span', 'crown', '👑'));
+        pics.appendChild(ph);
+      });
+      pod.appendChild(pics);
+      pod.appendChild(el('div', 'pod-name', r ? r.names.join(' · ') : '-'));
+      if (r) {
+        const score = versus ? r.scores.join(' : ') : String(r.score);
+        pod.appendChild(el('div', 'pod-score', `${score}점`));
+        pod.appendChild(el('div', 'pod-date', `${date(r.playedAt)}${isBalloon ? ` · 스테이지 ${r.stage}` : ''}`));
+      }
+      pod.appendChild(el('div', 'pod-block', String(rank)));
+      podium.appendChild(pod);
+    }
+    $('hallHint').textContent = rows.length ? '' : '아직 기록이 없어요. 게임을 해서 1등에 도전해요!';
+    const rest = $('hallRest');
+    rest.innerHTML = '';
+    rows.slice(3, 10).forEach((r, i) => {
+      rest.appendChild(el('span', '', `${i + 4}위 ${r.names.join(' · ')} ${versus ? r.scores.join(':') : r.score}점`));
+    });
+  }
 }
 
 // ---------- 보정(공통) ----------

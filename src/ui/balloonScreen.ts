@@ -9,6 +9,7 @@ import { BalloonView, balloonColor } from '../game/balloon/view';
 import { measure } from '../pose/body';
 import { LM, dist } from '../pose/landmarks';
 import { AutoPause } from './autoPause';
+import { registerHall } from './hallResult';
 import { pauseKeys } from './screens';
 
 type Phase = 'calib' | 'countdown' | 'playing' | 'clear' | 'result';
@@ -410,8 +411,10 @@ export class BalloonScreen implements Screen {
     this.app.hover.suppress();
     $('brAgain').focus({ preventScroll: true });
     this.app.log(`balloon result score=${g.scores.join('/')} stage=${g.stage} stages=${g.stageScores.join(',')}`);
+    const playId = crypto.randomUUID();
+    void registerHall(this.app, { game: s.game, participants: s.participants, scores: g.mode === 'versus' ? g.scores.slice() : [g.totalScore], stage: g.stage, playId }, $('brHall'));
     void savePlay({
-      id: crypto.randomUUID(),
+      id: playId,
       game: s.game,
       startedAt: this.startedAt,
       endedAt: new Date().toISOString(),

@@ -10,6 +10,9 @@ import { SettingsScreen } from './ui/settings';
 import { BalloonScreen } from './ui/balloonScreen';
 import { WallScreen } from './ui/wallScreen';
 
+/** 검증용: 시험 플레이어를 만들었으면 손님 대신 그 플레이어로 시작한다 */
+let seeded = false;
+
 async function boot(): Promise<void> {
   await loadConfig();
   const app = new App();
@@ -55,6 +58,7 @@ async function boot(): Promise<void> {
   const api = window.popstar;
   const test = api ? await api.getTestConfig() : null;
   if (test?.seedPlayers) await seedPlayers(test.seedPlayers);
+  seeded = Boolean(test?.seedPlayers);
 
   await app.go('main');
   // 개발 모드(npm run dev / web)에서는 콘솔에서 앱을 살펴볼 수 있게 한다.
@@ -255,7 +259,8 @@ async function setupTestHooks(
     else if (route === 'calib' || route === 'play' || route === 'balloon') {
       await app.go('games');
       await app.go('select', game);
-      select.fillGuests();
+      if (seeded) await select.fillPlayers();
+      else select.fillGuests();
       $('selectStart').click();
     } else await app.go(route as RouteName, arg);
     api.sendMetrics(`start route: ${startRoute} (config hover=${config.common.hoverSelectMs}ms)`);

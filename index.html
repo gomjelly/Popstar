@@ -80,12 +80,9 @@
       <section class="screen" id="scr-hall" hidden>
         <h2 class="title">🏆 명예의 전당</h2>
         <div id="hallTabs" class="tabs"></div>
-        <div class="podium">
-          <div class="pod p2"><div class="pod-photo">?</div><div class="pod-name">-</div><div class="pod-block">2</div></div>
-          <div class="pod p1"><div class="pod-photo">?</div><div class="pod-name">-</div><div class="pod-block">1</div></div>
-          <div class="pod p3"><div class="pod-photo">?</div><div class="pod-name">-</div><div class="pod-block">3</div></div>
-        </div>
-        <p class="hint-line">아직 기록이 없어요. 게임을 해서 1등에 도전해요!</p>
+        <div id="hallPodium" class="podium"></div>
+        <p id="hallHint" class="hint-line"></p>
+        <div id="hallRest" class="hall-rest"></div>
       </section>
 
       <!-- ===== 보정 (공통) ===== -->
@@ -147,6 +144,7 @@
             <div id="brScore" class="br-score"></div>
             <div id="brInfo" class="br-info"></div>
             <div id="brStages" class="br-stages"></div>
+            <div id="brHall" class="hall-msg"></div>
             <div class="row center">
               <button class="hov mid primary" id="brAgain" data-name="again">🔄 다시 하기</button>
               <button class="hov mid" id="brHome" data-name="home">🏠 처음으로</button>
@@ -179,6 +177,7 @@
             <div id="wrScore" class="br-score"></div>
             <div id="wrInfo" class="br-info"></div>
             <div id="wrList" class="w-list"></div>
+            <div id="wrHall" class="hall-msg"></div>
             <div class="row center">
               <button class="hov mid primary" id="wrAgain" data-name="again">🔄 다시 하기</button>
               <button class="hov mid" id="wrHome" data-name="home">🏠 처음으로</button>
