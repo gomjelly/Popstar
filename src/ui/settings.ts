@@ -44,6 +44,9 @@ export class SettingsScreen implements Screen {
     const prev = $<HTMLInputElement>('previewToggle');
     prev.checked = app.previewPref;
     prev.addEventListener('change', () => app.setPreview(prev.checked));
+    const hand = $<HTMLInputElement>('handToggle');
+    hand.checked = app.handCursorOn;
+    hand.addEventListener('change', () => app.setHandCursor(hand.checked));
     const mirror = $<HTMLInputElement>('mirrorToggle');
     mirror.checked = app.mirror;
     mirror.addEventListener('change', () => {

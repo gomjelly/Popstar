@@ -32,6 +32,10 @@ export interface TestConfig {
   wallPoses: string | null;
   /** 거울 반전 강제('0' | '1'), 없으면 설정값 */
   mirror: string | null;
+  /** 메뉴 손 조작 강제('0' | '1') */
+  hand: string | null;
+  /** 카메라 보기 강제('0' | '1') */
+  preview: string | null;
 }
 
 export interface PopstarBridge {

@@ -93,6 +93,8 @@ export class App {
   sourceLabel = '없음';
   modelKind: ModelKind = (localStorage.getItem('popstar.model') as ModelKind) || 'full';
   previewPref = localStorage.getItem('popstar.preview') === '1';
+  /** 메뉴를 손 커서로 고를지(기본 끔 = 마우스). 게임 안의 몸 동작과는 상관없다 */
+  handCursorOn = localStorage.getItem('popstar.handCursor') === '1';
   mirror: boolean;
   /** 이번 프레임에 그린 아바타 정보(슬롯 순서) */
   avatarInfo: AvatarInfo[] = [];
@@ -283,6 +285,7 @@ export class App {
 
     this.current?.update?.(now);
     // 화면 상태에 따라 뒤로 버튼이 바뀔 수 있다(풍선 게임: 보정 중에만 뒤로)
+    this.refreshTools();
     const noBack = !this.current?.backTo;
     if ($('backBtn').hidden !== noBack) $('backBtn').hidden = noBack;
     this.drawAvatars();
@@ -362,7 +365,7 @@ export class App {
     const overlayOpen = !$('pauseOverlay').hidden;
     const scope = overlayOpen ? $('pauseOverlay') : (this.current?.el ?? null);
     const pts: (CursorPoint | null)[] = this.tracker.slots.map((s, i) => {
-      if (!s.present || !s.pts || (this.current?.cursorsOff && !overlayOpen)) return this.cursors[i].update(null);
+      if (!this.handCursorOn || !s.present || !s.pts || (this.current?.cursorsOff && !overlayOpen)) return this.cursors[i].update(null);
       // 놀이터(게임 중)에서는 멈춤 버튼·일시정지 창에만 커서를 쓴다.
       return this.cursors[i].update(s.pts);
     });
@@ -384,6 +387,29 @@ export class App {
     this.previewPref = on;
     localStorage.setItem('popstar.preview', on ? '1' : '0');
     ($('previewToggle') as HTMLInputElement).checked = on;
+    this.refreshTools();
+  }
+
+  setHandCursor(on: boolean): void {
+    this.handCursorOn = on;
+    localStorage.setItem('popstar.handCursor', on ? '1' : '0');
+    ($('handToggle') as HTMLInputElement).checked = on;
+    this.hover.suppress();
+    this.refreshTools();
+  }
+
+  /** 왼쪽 아래 도구 버튼 상태. 게임 중(손 커서를 안 쓰는 동안)에는 손 조작 버튼을 숨긴다 */
+  refreshTools(): void {
+    const cam = $('camViewBtn');
+    cam.classList.toggle('on', this.previewVisible);
+    const camText = this.previewVisible ? '📷 카메라 숨기기' : '📷 카메라 보기';
+    if (cam.textContent !== camText) cam.textContent = camText;
+    const hand = $('handBtn');
+    hand.classList.toggle('on', this.handCursorOn);
+    const handText = this.handCursorOn ? '🖐 손 조작 켜짐' : '🖐 손 조작 꺼짐';
+    if (hand.textContent !== handText) hand.textContent = handText;
+    const inGame = Boolean(this.current?.cursorsOff) && $('pauseOverlay').hidden;
+    if (hand.hidden !== inGame) hand.hidden = inGame;
   }
 
   private drawPreview(): void {

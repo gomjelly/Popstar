@@ -31,6 +31,9 @@ async function boot(): Promise<void> {
 
   $('backBtn').addEventListener('click', () => app.back());
   $('gearBtn').addEventListener('click', () => void app.go('settings'));
+  $('camViewBtn').addEventListener('click', () => app.setPreview(!app.previewVisible));
+  $('handBtn').addEventListener('click', () => app.setHandCursor(!app.handCursorOn));
+  app.refreshTools();
   // 일시정지 창(모든 게임 화면 공통)
   $('resumeBtn').addEventListener('click', () => {
     app.setPaused(false);
@@ -83,6 +86,11 @@ async function boot(): Promise<void> {
   // 자동 실행(--start)에서는 확인 버튼(보정 결과 등)을 잠시 뒤 자동으로 누른다
   if (test?.startRoute) app.testAuto = true;
   if (test?.mirror === '0' || test?.mirror === '1') app.mirror = test.mirror === '1';
+  if (test?.preview === '0' || test?.preview === '1') app.previewPref = test.preview === '1';
+  if (test?.hand === '0' || test?.hand === '1') {
+    app.handCursorOn = test.hand === '1';
+    app.refreshTools();
+  }
   if (api && test) await setupTestHooks(app, settings, select, test.captureTitle, test.logMetrics, test.startRoute);
 }
 
@@ -104,7 +112,9 @@ function setupKeyboard(app: App): void {
       moveFocus(app, e.key);
       e.preventDefault();
     } else if (e.key === 'v' || e.key === 'V') {
-      app.setPreview(!app.previewPref);
+      app.setPreview(!app.previewVisible);
+    } else if (e.key === 'h' || e.key === 'H') {
+      app.setHandCursor(!app.handCursorOn);
     } else if (e.key === 'm' || e.key === 'M') {
       app.sound.setMuted(!app.sound.muted);
     }

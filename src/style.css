@@ -17,6 +17,11 @@
   box-sizing: border-box;
 }
 
+/* hidden 속성은 언제나 숨김(display: flex 같은 규칙이 있어도). 이름표 잔상 버그 수정 */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -660,9 +665,9 @@ button:disabled {
 /* ---------- 카메라 미리보기 ---------- */
 .preview {
   position: absolute;
-  right: 2vh;
-  bottom: 2vh;
-  width: 30vh;
+  left: 2vh;
+  bottom: 9vh;
+  width: 36vh;
   border-radius: 1.5vh;
   overflow: hidden;
   border: 0.4vh solid rgba(255, 255, 255, 0.6);
@@ -683,7 +688,8 @@ button:disabled {
 
 .status-bar {
   position: absolute;
-  left: 2vh;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: 1.2vh;
   font-size: 2vh;
   color: rgba(255, 255, 255, 0.45);
@@ -1155,4 +1161,29 @@ button:disabled {
 #wResult .w-list {
   font-size: 2.9vh;
   margin-bottom: 2vh;
+}
+
+/* 왼쪽 아래 도구: 카메라 보기, 손 조작 켜기/끄기 */
+.toolbar {
+  position: absolute;
+  left: 2vh;
+  bottom: 2vh;
+  display: flex;
+  gap: 1vh;
+  z-index: 7;
+}
+.tool {
+  font-size: 2.8vh;
+  padding: 0.8vh 1.8vh;
+  border-radius: 1.6vh;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0.85;
+}
+.tool.on {
+  background: rgba(47, 207, 107, 0.75);
+}
+.tool:hover,
+.tool:focus-visible {
+  transform: none;
+  box-shadow: 0 0 0 0.4vh var(--accent);
 }

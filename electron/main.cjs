@@ -20,6 +20,8 @@ const isDev = process.argv.includes('--dev');
 //   --bot-hands               풍선 게임에서 가장 가까운 풍선으로 움직이는 봇 손을 함께 쓴다(3스테이지 검증용)
 //   --wall-poses=stand,star   벽 게임 자세를 이 목록으로 고정한다(검증용)
 //   --mirror=0|1              거울 반전을 이번 실행에만 끄거나 켠다(설정은 바꾸지 않음)
+//   --preview=0|1             카메라 보기를 이번 실행에만 끄거나 켠다
+//   --hand=0|1                메뉴 손 조작을 이번 실행에만 끄거나 켠다
 //   --quit-after=<초>          그 시간이 지나면 앱을 끝낸다(자동 검증용)
 //   --profile-dir=<폴더>       기록·설정을 이 폴더에 따로 저장한다(테스트 기록이 실제 기록과 섞이지 않게)
 //   --window-size=1280x720    창 내용 크기
@@ -36,6 +38,8 @@ const seedPlayers = Number(argValue('seed-players')) || 0;
 const botHands = process.argv.includes('--bot-hands');
 const wallPoses = argValue('wall-poses');
 const mirrorArg = argValue('mirror');
+const handArg = argValue('hand');
+const previewArg = argValue('preview');
 const quitAfter = Number(argValue('quit-after')) || 0;
 const profileDir = argValue('profile-dir');
 const testVideo = argValue('test-video');
@@ -237,6 +241,8 @@ ipcMain.handle('test:config', () => ({
   botHands,
   wallPoses,
   mirror: mirrorArg,
+  hand: handArg,
+  preview: previewArg,
 }));
 ipcMain.handle('test:video', () => {
   if (!testVideo) return null;

@@ -21,7 +21,7 @@
           <button class="hov big b-add" data-name="add-player" data-go="add-player"><span class="ico">📸</span><span>플레이어 추가</span></button>
         </div>
         <div class="safety">⚠️ 주변의 가구·장난감을 치우고, 카메라에서 2~3걸음 떨어져 서요</div>
-        <p class="hint-line">손을 들어 버튼 위에 잠깐 멈추면 골라져요 · 마우스·키보드도 돼요</p>
+        <p class="hint-line">마우스·키보드로 골라요 · 왼쪽 아래 🖐 손 조작을 켜면 손을 들어 버튼 위에 잠깐 멈춰도 골라져요</p>
       </section>
 
       <!-- ===== 게임 선택 ===== -->
@@ -212,6 +212,7 @@
             <button class="hov small" id="fsBtn" data-name="fullscreen">전체화면 (F11)</button>
           </div>
           <label class="check"><input type="checkbox" id="previewToggle" /> 카메라 미리보기 (V)</label>
+          <label class="check"><input type="checkbox" id="handToggle" /> 메뉴를 손으로 고르기 (H)</label>
           <label class="check"><input type="checkbox" id="mirrorToggle" /> 거울처럼 좌우 반전</label>
           <label>배경음악 <input type="range" id="musicVol" min="0" max="100" step="5" /></label>
           <label>효과음 <input type="range" id="sfxVol" min="0" max="100" step="5" /></label>
@@ -252,6 +253,10 @@
       </div>
 
       <div id="status" class="status-bar"></div>
+      <div class="toolbar">
+        <button class="tool" id="camViewBtn" title="카메라 보기/숨기기 (V)">📷 카메라</button>
+        <button class="tool" id="handBtn" title="손으로 메뉴 고르기 켜기/끄기 (H)">🖐 손 조작</button>
+      </div>
       <div id="toast" class="toast" hidden></div>
       <div id="cursorLayer"></div>
     </div>
