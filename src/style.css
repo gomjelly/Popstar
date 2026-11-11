@@ -259,8 +259,7 @@ button:disabled {
   gap: 2vw;
   justify-content: center;
   max-width: 92vw;
-  max-height: 56vh;
-  overflow: hidden;
+  padding-top: 2vh;
 }
 .player-card {
   position: relative;
