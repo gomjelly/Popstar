@@ -1011,3 +1011,148 @@ button:disabled {
 .tag {
   transition: opacity 0.4s;
 }
+
+/* 벽 게임 보정 결과(FR-WALL-05) */
+.calib-result {
+  position: absolute;
+  right: 3vw;
+  top: 22vh;
+  display: flex;
+  flex-direction: column;
+  gap: 3vh;
+  align-items: flex-end;
+}
+.calib-result[hidden] {
+  display: none;
+}
+.calib-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vh;
+  padding: 2vh 3vh;
+  border-radius: 2.5vh;
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 4.6vh;
+}
+.calib-stats b {
+  color: var(--accent);
+  margin-left: 1vh;
+}
+.calib-result .row {
+  flex-direction: column;
+  gap: 2vh;
+}
+
+/* ---------- 벽 뚫고 지나가기 ---------- */
+#bg.wall-bg {
+  background:
+    radial-gradient(ellipse at 50% 52%, rgba(255, 255, 255, 0.35), transparent 45%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 9vw),
+    linear-gradient(180deg, #3b2a8f 0%, #6a4fc9 50%, #f2a7d0 100%);
+}
+#scr-wall {
+  padding: 0;
+  pointer-events: none;
+}
+#scr-wall button {
+  pointer-events: auto;
+}
+.w-pose {
+  font-size: 7vh;
+  padding: 0.5vh 3vh;
+  border-radius: 2vh;
+  background: rgba(0, 0, 0, 0.25);
+}
+.w-grade {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 16vh;
+  font-weight: bold;
+  text-shadow: 0 1vh 0 rgba(0, 0, 0, 0.35);
+  z-index: 4;
+  animation: pop-in 0.35s ease-out;
+  white-space: nowrap;
+  text-align: center;
+}
+.w-grade small {
+  display: block;
+  font-size: 5vh;
+  font-weight: normal;
+}
+.w-grade.Perfect {
+  color: #ffd84d;
+}
+.w-grade.Great {
+  color: #7dffb0;
+}
+.w-grade.Good {
+  color: #8fd0ff;
+}
+.w-grade.Oops {
+  color: #ff8a9a;
+}
+.w-list {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 0.4vh 4vh;
+  justify-content: center;
+  font-size: 3.4vh;
+  margin-bottom: 3vh;
+  text-align: left;
+}
+.w-list .Perfect {
+  color: #ffd84d;
+}
+.w-list .Oops {
+  color: #ff8a9a;
+}
+.banner.beat {
+  top: 18%;
+  font-size: 12vh;
+  background: none;
+  text-shadow: 0 1vh 2vh rgba(0, 0, 0, 0.5);
+}
+
+/* 다음 구멍 미리보기 */
+.w-preview {
+  position: absolute;
+  right: 2.5vw;
+  top: 16vh;
+  width: 24vh;
+  padding: 1vh;
+  border-radius: 2vh;
+  background: rgba(20, 10, 60, 0.45);
+  text-align: center;
+  font-size: 3.2vh;
+  z-index: 3;
+  transition: box-shadow 0.2s;
+}
+.w-preview[hidden] {
+  display: none;
+}
+.w-preview canvas {
+  display: block;
+  width: 100%;
+}
+.w-preview.hot {
+  box-shadow: 0 0 0 0.6vh #ffd84d;
+}
+/* 벽 게임 결과: 벽 10개까지 한 화면에 */
+#wResult .overlay-card {
+  padding: 3vh 4vw;
+}
+#wResult h2 {
+  font-size: 7vh;
+}
+#wResult .br-score {
+  font-size: 11vh;
+}
+#wResult .br-info {
+  font-size: 4vh;
+}
+#wResult .w-list {
+  font-size: 2.9vh;
+  margin-bottom: 2vh;
+}

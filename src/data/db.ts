@@ -112,6 +112,15 @@ export async function addPlayer(p: Omit<PlayerRecord, 'id' | 'createdAt'>): Prom
   return rec;
 }
 
+export async function updatePlayer(id: string, patch: Partial<Omit<PlayerRecord, 'id'>>): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction('players', 'readwrite');
+  const store = tx.objectStore('players');
+  const cur = await req(store.get(id) as IDBRequest<PlayerRecord | undefined>);
+  if (cur) store.put({ ...cur, ...patch, id });
+  await done(tx);
+}
+
 export async function deletePlayer(id: string): Promise<void> {
   const db = await openDb();
   const tx = db.transaction('players', 'readwrite');

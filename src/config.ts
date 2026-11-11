@@ -1,4 +1,5 @@
 import { DEFAULT_BALLOON, type BalloonParams } from './game/balloon/logic';
+import { DEFAULT_WALL, type WallParams } from './game/wall/geometry';
 
 // public/config/game.config.json 을 읽는다(SRS 6장). 값을 바꾸고 새로고침하면 반영된다.
 // 1단계(공통 기반)는 common 항목만 쓰고, wall/balloon 은 그대로 보관해 다음 단계에서 쓴다.
@@ -38,8 +39,7 @@ export interface CommonConfig {
 
 export interface GameConfig {
   common: CommonConfig;
-  /** 3단계 이후에 쓰는 벽 게임 값(그대로 보관) */
-  wall: Record<string, unknown>;
+  wall: WallParams;
   balloon: BalloonParams;
 }
 
@@ -60,7 +60,7 @@ const DEFAULTS: GameConfig = {
     cursorZone: { width: 1.7, height: 1.25, outward: 0.35, up: 0.25 },
     photoCountdownSec: 3,
   },
-  wall: {},
+  wall: DEFAULT_WALL,
   balloon: DEFAULT_BALLOON,
 };
 
@@ -78,7 +78,7 @@ export async function loadConfig(): Promise<GameConfig> {
         volume: { ...DEFAULTS.common.volume, ...json.common?.volume },
         cursorZone: { ...DEFAULTS.common.cursorZone, ...json.common?.cursorZone },
       },
-      wall: json.wall ?? {},
+      wall: mergeWall(json.wall),
       balloon: mergeBalloon(json.balloon),
     };
   } catch (err) {
@@ -101,6 +101,21 @@ function mergeBalloon(b: Partial<BalloonParams> | undefined): BalloonParams {
     specialRatio: { ...d.specialRatio, ...b.specialRatio },
     points: { ...d.points, ...b.points },
     combo: b.combo ?? d.combo,
+  };
+}
+
+function mergeWall(w: Partial<WallParams> | undefined): WallParams {
+  const d = structuredClone(DEFAULT_WALL);
+  if (!w) return d;
+  return {
+    ...d,
+    ...w,
+    wallCount: { ...d.wallCount, ...w.wallCount },
+    grid: { ...d.grid, ...w.grid },
+    wallSize: { ...d.wallSize, ...w.wallSize },
+    approachSec: { ...d.approachSec, ...w.approachSec },
+    holeMarginBubbles: { ...d.holeMarginBubbles, ...w.holeMarginBubbles },
+    grades: { ...d.grades, ...w.grades },
   };
 }
 

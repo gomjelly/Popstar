@@ -11,7 +11,9 @@ const params = new URLSearchParams(location.search);
 const PEOPLE = Number(params.get('people') ?? 2);
 /** basic = 자리 바꾸기·나갔다 오기 대본, balloon = 양팔 펴기 보정 후 여기저기 손 뻗기 */
 const SCRIPT = params.get('script') ?? 'basic';
-export const DURATION = SCRIPT === 'balloon' ? 40 : 50;
+/** wall 대본: 처음 6초 기준 자세(보정) 뒤 이 자세로 버틴다 — stand | star */
+const HOLD = params.get('hold') ?? 'stand';
+export const DURATION = SCRIPT === 'balloon' ? 40 : SCRIPT === 'wall' ? 120 : 50;
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const info = document.getElementById('info') as HTMLDivElement;
@@ -203,7 +205,10 @@ class Person {
     const hs = s * (this.child ? 1.22 : 1);
     const base = new THREE.Vector3(p.x, 0, p.z);
     const legLen = (this.child ? 0.86 : 0.88) * s;
-    const hip = base.clone().add(new THREE.Vector3(0, legLen + 0.08 * s + p.bob, 0));
+    // 다리를 벌리거나 들면 골반이 내려가 받치는 발이 바닥에 붙게 한다(실제 사람처럼)
+    const drop = (l: LimbPose) => legLen * (1 - Math.cos(rad(l.abd)) * Math.cos(rad(l.flex)));
+    const hipDrop = Math.min(drop(p.legL), drop(p.legR));
+    const hip = base.clone().add(new THREE.Vector3(0, legLen + 0.08 * s + p.bob - hipDrop, 0));
     const shoulderY = hip.y + (this.child ? 0.5 : 0.52) * s;
     const shoulderC = new THREE.Vector3(p.x, shoulderY, p.z);
     this.pelvis.position.copy(hip).add(new THREE.Vector3(0, 0.03 * s, 0));
@@ -357,6 +362,23 @@ function childBalloon(t: number): BodyPose {
   return reachPose(t, base, 1.7);
 }
 
+// ---------- 벽 게임 대본 ----------
+// 1인, 가운데. 0~6초 기준 자세(다리 어깨너비, 팔 내림) → 6~7초 사이 HOLD 자세로 바꾸고 끝까지 버팀
+
+function wallPose(t: number): BodyPose {
+  const p: BodyPose = { x: 0, z: -3.3, bob: 0, armL: rest(), armR: rest(), legL: legRest(), legR: legRest(), headYaw: 0 };
+  p.armL.abd += Math.sin(t * 1.3) * 1.5;
+  p.armR.abd += Math.sin(t * 1.3 + 1) * 1.5;
+  if (HOLD === 'star') {
+    const k = smooth(6, 7, t);
+    p.armL = { abd: lerp(p.armL.abd, 120, k), flex: 0, bend: lerp(6, 0, k) };
+    p.armR = { abd: lerp(p.armR.abd, 120, k), flex: 0, bend: lerp(6, 0, k) };
+    p.legL = { abd: lerp(4, 25, k), flex: 0, bend: 0 };
+    p.legR = { abd: lerp(4, 25, k), flex: 0, bend: 0 };
+  }
+  return p;
+}
+
 // ---------- 화면 ----------
 function resize(): void {
   const w = canvas.clientWidth;
@@ -371,7 +393,7 @@ resize();
 let t0 = performance.now();
 function frame(): void {
   const t = ((performance.now() - t0) / 1000) % DURATION;
-  adult.pose(SCRIPT === 'balloon' ? adultBalloon(t) : adultPose(t));
+  adult.pose(SCRIPT === 'balloon' ? adultBalloon(t) : SCRIPT === 'wall' ? wallPose(t) : adultPose(t));
   child?.pose(SCRIPT === 'balloon' ? childBalloon(t) : childPose(t));
   renderer.render(scene, camera);
   info.textContent = `${PEOPLE}명 · ${t.toFixed(1)}s / ${DURATION}s`;

@@ -8,6 +8,7 @@ import { savedCameraId, listCameras } from './pose/camera';
 import { AddPlayerScreen, CalibScreen, GamesScreen, HallScreen, MainScreen, PlayScreen, SelectScreen } from './ui/screens';
 import { SettingsScreen } from './ui/settings';
 import { BalloonScreen } from './ui/balloonScreen';
+import { WallScreen } from './ui/wallScreen';
 
 async function boot(): Promise<void> {
   await loadConfig();
@@ -24,6 +25,8 @@ async function boot(): Promise<void> {
   app.register(new CalibScreen(app));
   app.register(new PlayScreen(app));
   app.register(new BalloonScreen(app));
+  const wall = new WallScreen(app);
+  app.register(wall);
   app.register(settings);
 
   $('backBtn').addEventListener('click', () => app.back());
@@ -76,6 +79,10 @@ async function boot(): Promise<void> {
   await settings.refreshCameraList();
 
   if (test?.botHands) app.testBot = true;
+  if (test?.wallPoses) wall.testPoses = test.wallPoses.split(',').map((x) => x.trim()).filter(Boolean);
+  // 자동 실행(--start)에서는 확인 버튼(보정 결과 등)을 잠시 뒤 자동으로 누른다
+  if (test?.startRoute) app.testAuto = true;
+  if (test?.mirror === '0' || test?.mirror === '1') app.mirror = test.mirror === '1';
   if (api && test) await setupTestHooks(app, settings, select, test.captureTitle, test.logMetrics, test.startRoute);
 }
 

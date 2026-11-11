@@ -1,12 +1,15 @@
 // 화면들: 메인, 게임 선택, 플레이어 선택, 플레이어 추가, 명예의 전당(틀), 보정, 아바타 확인, 설정.
 
-import { $, App, FLOOR_Y, type Screen } from '../app';
+import { $, App, FLOOR_Y, type AvatarMode, type Screen } from '../app';
 import { GAMES, PLAYER_COLORS, config, gameInfo, type GameId } from '../config';
 import { MAX_NAME, addPlayer, autoColor, checkName, colorHex, listPlayers, nameLength, type PlayerRecord } from '../data/db';
 import { frameProblem, measure, type FrameProblem } from '../pose/body';
 import { LM, dist, mid, type Pt } from '../pose/landmarks';
 import { calibTargetX } from '../pose/transform';
 import { AutoPause } from './autoPause';
+import { averageProfile, measureProfile } from '../game/wall/profile';
+import type { BodyProfile } from '../game/wall/geometry';
+import { updatePlayer } from '../data/db';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
   const e = document.createElement(tag);
@@ -503,30 +506,50 @@ const PROBLEM_TEXT: Record<FrameProblem, string> = {
 export class CalibScreen implements Screen {
   readonly name = 'calib' as const;
   readonly el = $('scr-calib');
-  readonly avatarMode = 'calib' as const;
-  readonly forcePreview = true;
   readonly backTo = 'select' as const;
   private holdStart = 0;
-  private samples: { height: number; foot: { x: number; y: number } }[][] = [];
+  private samples: { height: number; foot: { x: number; y: number }; profile: BodyProfile }[][] = [];
+  /** 벽 게임: 보정 결과를 보여주고 다시 하기/확인을 고르는 중(FR-WALL-05) */
+  private confirming = false;
+
+  get avatarMode(): AvatarMode {
+    return this.confirming ? 'game' : 'calib';
+  }
+  get forcePreview(): boolean {
+    return !this.confirming;
+  }
+
+  private get isWall(): boolean {
+    return this.app.session?.game === 'wall';
+  }
   private lastAnchor: ({ x: number; y: number } | null)[] = [];
   /** 문제가 보이기 시작한 때(짧은 깜빡임은 봐준다) */
   private badSince = 0;
   private lastError = 0;
 
-  constructor(private app: App) {}
+  constructor(private app: App) {
+    $('calibRetry').addEventListener('click', () => this.enter());
+    $('calibOk').addEventListener('click', () => void this.app.go('wall'));
+  }
 
   enter(): void {
     this.holdStart = 0;
+    this.confirming = false;
+    this.app.tracker.mode = 'menu';
+    $('calibResult').hidden = true;
+    $('calibGuide').hidden = false;
+    $('calibBar').parentElement!.hidden = false;
+    $('calibSilhouette').hidden = false;
     const s = this.app.session;
     const n = s?.participants.length ?? 1;
-    $('calibTitle').textContent = n === 1 ? '준비 자세 · 똑바로 서요' : '준비 자세 · 둘이 나란히 서요';
+    $('calibTitle').textContent = n === 1 ? '준비 자세 · 다리는 어깨너비, 팔은 내리고' : '준비 자세 · 둘이 나란히 서요';
     $('calibSilhouette').innerHTML = silhouetteSvg(n);
     $('calibBar').style.width = '0%';
   }
 
   update(now: number): void {
     const s = this.app.session;
-    if (!s) return;
+    if (!s || this.confirming) return;
     const need = s.participants.length;
     const present = this.app.tracker.slots.filter((x) => x.present && x.pts);
     const c = config.common;
@@ -580,9 +603,11 @@ export class CalibScreen implements Screen {
       if (i >= need || !slot.pts) return;
       const m = measure(slot.pts, c.minVisibility);
       // 발목까지 실제로 잰 프레임만 평균에 넣는다(몸통으로 추정한 키는 빼기)
-      if (m.fullHeight) this.samples[i].push({ height: m.height, foot: m.foot });
+      if (m.fullHeight) this.samples[i].push({ height: m.height, foot: m.foot, profile: measureProfile(slot.pts, c.minVisibility).profile });
     });
-    const prog = Math.min(1, (now - this.holdStart) / c.calibHoldMs);
+    // 벽 게임은 3초 동안 프레임 평균으로 체형을 잰다(FR-WALL-03)
+    const holdMs = this.isWall ? config.wall.calibHoldMs : c.calibHoldMs;
+    const prog = Math.min(1, (now - this.holdStart) / holdMs);
     $('calibBar').style.width = `${(prog * 100).toFixed(0)}%`;
     if (prog >= 1) {
       if (this.samples.slice(0, need).every((xs) => xs.length >= 5)) this.finish();
@@ -601,14 +626,54 @@ export class CalibScreen implements Screen {
       return { height: avg((q) => q.height), foot: { x: avg((q) => q.foot.x), y: avg((q) => q.foot.y) } };
     });
     const feetX = measured.map((m) => m.foot.x);
+    // 벽 게임: 키가 화면 높이의 60%, 서 있던 자리가 화면 가로 가운데(FR-WALL-04)
+    const screenH = this.isWall ? config.wall.playerScreenHeight : c.avatarScreenHeight;
     measured.forEach(({ height, foot }, i) => {
-      const scale = c.avatarScreenHeight / Math.max(1e-3, height);
+      const scale = screenH / Math.max(1e-3, height);
       s.calibHeights[i] = height;
-      s.transforms[i].calibrate(height, foot, c.avatarScreenHeight, calibTargetX(foot.x, feetX, scale), FLOOR_Y);
+      s.transforms[i].calibrate(height, foot, screenH, calibTargetX(foot.x, feetX, scale), FLOOR_Y);
       this.app.log(`calibrated P${i + 1} height=${height.toFixed(3)} scale=${scale.toFixed(3)} x=${s.transforms[i].to.x.toFixed(2)}`);
     });
     this.app.sound.play('cheer');
-    void this.app.go('play');
+    if (!this.isWall) {
+      void this.app.go('play');
+      return;
+    }
+    const profile = averageProfile(this.samples[0].map((q) => q.profile));
+    s.profile = profile;
+    this.app.tracker.mode = 'game';
+    this.showResult(profile);
+    const player = s.participants[0]?.player;
+    if (player) {
+      // 다음번 "지난 보정 그대로"를 위해 플레이어에 저장(FR-PLY-07)
+      void updatePlayer(player.id, { bodyProfile: { ...profile }, calibratedAt: new Date().toISOString() }).catch((e) => console.warn(e));
+    }
+    this.app.log(
+      'profile ' +
+        Object.entries(profile)
+          .map(([k, v]) => k + '=' + (v as number).toFixed(3))
+          .join(' '),
+    );
+  }
+
+  /** 보정 결과를 아바타와 숫자로 보여 준다(FR-WALL-05). 단위 = 키를 1로 둔 비율 */
+  private showResult(p: BodyProfile): void {
+    this.confirming = true;
+    $('calibGuide').hidden = true;
+    $('calibBar').parentElement!.hidden = true;
+    $('calibSilhouette').hidden = true;
+    $('calibTitle').textContent = '몸 크기를 쟀어요!';
+    const f = (v: number) => v.toFixed(2);
+    $('calibStats').innerHTML =
+      '<span>키 <b>1.00</b></span>' +
+      '<span>어깨 <b>' + f(p.shoulderW) + '</b></span>' +
+      '<span>팔 <b>' + f(p.upperArm + p.forearm) + '</b></span>' +
+      '<span>다리 <b>' + f(p.thigh + p.shin) + '</b></span>' +
+      '<span>머리 <b>' + f(p.headR * 2) + '</b></span>';
+    $('calibResult').hidden = false;
+    this.app.hover.suppress();
+    $('calibOk').focus({ preventScroll: true });
+    if (this.app.testAuto) setTimeout(() => this.confirming && $('calibOk').click(), 2500);
   }
 }
 

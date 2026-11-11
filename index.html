@@ -94,6 +94,13 @@
         <div id="calibGuide" class="guide big-guide">카메라 앞에 서요</div>
         <div class="hold-gauge"><div id="calibBar"></div></div>
         <div id="calibSilhouette" class="silhouette">🧍</div>
+        <div id="calibResult" class="calib-result" hidden>
+          <div id="calibStats" class="calib-stats"></div>
+          <div class="row center">
+            <button class="hov mid" id="calibRetry" data-name="calib-retry">🔄 다시 재기</button>
+            <button class="hov mid primary" id="calibOk" data-name="calib-ok">좋아요, 시작!</button>
+          </div>
+        </div>
       </section>
 
       <!-- ===== 아바타 확인(1단계 놀이터: 게임은 다음 단계) ===== -->
@@ -143,6 +150,38 @@
             <div class="row center">
               <button class="hov mid primary" id="brAgain" data-name="again">🔄 다시 하기</button>
               <button class="hov mid" id="brHome" data-name="home">🏠 처음으로</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 벽 뚫고 지나가기 (SRS 4장) ===== -->
+      <section class="screen" id="scr-wall" hidden>
+        <div class="bhud">
+          <div class="bh-left">
+            <div id="whWall" class="stage"></div>
+            <div id="whLevel" class="miss"></div>
+          </div>
+          <div class="bh-center">
+            <div id="whPose" class="w-pose"></div>
+          </div>
+          <div class="bh-right">
+            <div id="whScore" class="score"></div>
+          </div>
+        </div>
+        <div id="wPreviewBox" class="w-preview"><canvas id="wPreview" width="240" height="230"></canvas><span>이 모양!</span></div>
+        <button class="small b-pause" id="wPause">⏸ 멈춤 (Space)</button>
+        <div id="wBanner" class="banner" hidden></div>
+        <div id="wGrade" class="w-grade" hidden></div>
+        <div id="wResult" class="overlay result" hidden>
+          <div class="overlay-card">
+            <h2 id="wrTitle">통과 완료!</h2>
+            <div id="wrScore" class="br-score"></div>
+            <div id="wrInfo" class="br-info"></div>
+            <div id="wrList" class="w-list"></div>
+            <div class="row center">
+              <button class="hov mid primary" id="wrAgain" data-name="again">🔄 다시 하기</button>
+              <button class="hov mid" id="wrHome" data-name="home">🏠 처음으로</button>
             </div>
           </div>
         </div>

@@ -13,10 +13,11 @@ import { PoseTracker, type ModelKind } from './pose/poseTracker';
 import { NormTransform } from './pose/transform';
 import { AvatarScene, type AvatarDraw, type AvatarInfo } from './render/avatarScene';
 import { HandCursor, HoverSelector, describe, type CursorPoint } from './ui/handCursor';
+import type { BodyProfile } from './game/wall/geometry';
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'balloon' | 'settings';
+export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'balloon' | 'wall' | 'settings';
 
 /** 화면마다 아바타를 어떻게 그릴지 */
 export type AvatarMode = 'menu' | 'calib' | 'game' | 'none';
@@ -53,6 +54,8 @@ export interface Session {
   participants: Participant[];
   /** 보정 결과: 슬롯별 키(카메라 단위) */
   calibHeights: number[];
+  /** 벽 게임 체형 프로필(1인) */
+  profile?: BodyProfile;
   transforms: NormTransform[];
 }
 
@@ -96,6 +99,8 @@ export class App {
   paused = false;
   /** 검증용(--bot-hands): 풍선 게임에서 봇 손을 함께 쓴다 */
   testBot = false;
+  /** 검증용: 확인 버튼을 자동으로 누른다 */
+  testAuto = false;
 
   // 측정
   readonly camRate = new Rate();

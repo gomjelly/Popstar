@@ -105,7 +105,7 @@ export class BalloonScreen implements Screen {
     $('bPause').hidden = true;
     $('bhCombo').hidden = true;
     $('bhSlow').hidden = true;
-    $('bCalibTitle').textContent = two ? '둘이 떨어져 서서 양팔을 옆으로 쭉 펴세요' : '제자리에서 양팔을 옆으로 쭉 펴세요';
+    $('bCalibTitle').textContent = two ? '둘이 떨어져서 양팔 쭉!' : '양팔을 옆으로 쭉 펴세요';
     $('bCalibBar').style.width = '0%';
     $('bSilhouette').innerHTML = tPoseSvg(this.need);
     this.app.sound.music('menu');

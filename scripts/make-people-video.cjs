@@ -3,6 +3,7 @@
 //   npx electron scripts/make-people-video.cjs --people=1 --seconds=50 --out=test-videos/one-person.webm
 //   npx electron scripts/make-people-video.cjs --script=balloon            (풍선 게임: 양팔 펴기 보정 후 손 뻗기, 40초)
 //   npx electron scripts/make-people-video.cjs --script=balloon --people=1
+//   npx electron scripts/make-people-video.cjs --script=wall --people=1 --hold=star   (벽 게임: 기준 자세로 보정 후 별 자세로 버팀, 120초)
 // dist/tools/people-video/ 페이지를 띄워 3D 장면을 녹화하고 webm 파일로 저장한다.
 
 const { app, BrowserWindow, protocol, net } = require('electron');
@@ -16,9 +17,13 @@ const arg = (name, fallback) => {
 };
 const people = Number(arg('people', '2'));
 const script = arg('script', 'basic');
-const seconds = Number(arg('seconds', script === 'balloon' ? '40' : '50'));
+const hold = arg('hold', 'stand');
+const seconds = Number(arg('seconds', script === 'balloon' ? '40' : script === 'wall' ? '120' : '50'));
 const root = path.join(__dirname, '..');
-const out = path.resolve(root, arg('out', `test-videos/${script === 'balloon' ? 'balloon-' : ''}${people === 1 ? 'one-person' : 'two-people'}.webm`));
+const out = path.resolve(
+  root,
+  arg('out', script === 'wall' ? `test-videos/wall-${hold}.webm` : `test-videos/${script === 'balloon' ? 'balloon-' : ''}${people === 1 ? 'one-person' : 'two-people'}.webm`),
+);
 const DIST = path.join(root, 'dist');
 
 protocol.registerSchemesAsPrivileged([
@@ -47,7 +52,7 @@ app.whenReady().then(async () => {
     autoHideMenuBar: true,
     webPreferences: { backgroundThrottling: false },
   });
-  await win.loadURL(`app://local/tools/people-video/index.html?people=${people}&script=${script}`);
+  await win.loadURL(`app://local/tools/people-video/index.html?people=${people}&script=${script}&hold=${hold}`);
   await new Promise((r) => setTimeout(r, 800));
 
   console.log(`녹화 중: ${people}명, ${seconds}초 …`);
