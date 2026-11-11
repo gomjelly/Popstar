@@ -7,11 +7,13 @@ import {
   approachSec,
   capsules,
   gradeOf,
+  hitWall,
   makeWall,
   pickPoses,
   poppedBubbles,
   poseJoints,
   totalScore,
+  wallScore,
   type BodyProfile,
   type WallConfig,
   type WallPose,
@@ -53,16 +55,53 @@ test('자세 각도: 별은 손이 어깨보다 높고 발이 벌어진다, 발�
   assert.ok(f.anL!.y > f.anR!.y + 0.1 * H);
 });
 
-test('모든 자세: 같은 자세 그대로 통과하면 Perfect(난이도 쉬움·보통·어려움, 어른·아이)', () => {
+const G = { perfect: 0, great: 5, good: 15 };
+const F = { perfect: 0.85, great: 0.7, good: 0.5 };
+
+test('모든 자세: 같은 자세 그대로 통과하면 벽 0개 + 금색 풍선 100% = Perfect(쉬움·보통·어려움, 어른·아이)', () => {
   for (const prof of [ADULT, CHILD]) {
     for (const margin of [1.5, 1.0, 0.6]) {
       for (const p of POSES) {
         const wall = makeWall(p, prof, H, FLOOR, CFG, margin);
-        const body = capsules(poseJoints(p, prof, H, 0, FLOOR));
-        assert.equal(poppedBubbles(wall, body).length, 0, `${p.id} margin=${margin}`);
-        assert.ok(wall.bubbles.some((b) => b.hole), `${p.id} 구멍이 있음`);
-        assert.ok(wall.bubbles.some((b) => !b.hole), `${p.id} 거품이 남음`);
+        const hit = hitWall(wall, capsules(poseJoints(p, prof, H, 0, FLOOR)));
+        assert.equal(hit.popped.length, 0, `${p.id} margin=${margin}`);
+        assert.equal(hit.fill, 1, `${p.id} margin=${margin} 채움`);
+        assert.equal(gradeOf(hit.popped.length, hit.fill, G, F), 'Perfect');
+        assert.ok(wall.targetCount >= 20, `${p.id} 금색 풍선 ${wall.targetCount}개`);
+        assert.ok(wall.bubbles.some((b) => b.hole && !b.target), `${p.id} 빈 여유 폭이 있음`);
+        assert.ok(wall.bubbles.some((b) => !b.hole), `${p.id} 벽 거품이 남음`);
       }
+    }
+  }
+});
+
+test('웅크리기 꼼수 막기: 팔다리를 펴는 자세 벽에 몸을 작게 하면 벽은 안 터져도 점수가 낮다', () => {
+  const crouch: WallPose = { id: 'crouch', name: '웅크리기', level: 1, shoulderL: 5, shoulderR: 5, elbowL: -150, elbowR: -150, hipL: 30, hipR: 30, kneeL: -150, kneeR: -150, torsoLean: 0, liftFoot: null };
+  for (const id of ['star', 't-pose', 'manse', 'big-x', 'airplane']) {
+    const wall = makeWall(pose(id), ADULT, H, FLOOR, CFG, 1);
+    const hit = hitWall(wall, capsules(poseJoints(crouch, ADULT, H, 0, FLOOR)));
+    assert.ok(hit.fill < 0.6, `${id}: 웅크리면 채움 ${(hit.fill * 100).toFixed(0)}%`);
+    assert.notEqual(gradeOf(hit.popped.length, hit.fill, G, F), 'Perfect');
+    assert.ok(wallScore(hit.popped.length, hit.fill, 1, 40) < 60);
+  }
+});
+
+test('크게 벌리기 꼼수 막기: 팔다리를 너무 뻗으면 벽 거품이 터져 감점', () => {
+  for (const id of ['stand', 't-pose', 'muscle', 'raise-left']) {
+    const wall = makeWall(pose(id), ADULT, H, FLOOR, CFG, 1);
+    const hit = hitWall(wall, capsules(poseJoints(pose('big-x'), ADULT, H, 0, FLOOR)));
+    assert.ok(hit.popped.length >= 10, `${id}: 크게 벌리면 벽 ${hit.popped.length}개`);
+    assert.notEqual(gradeOf(hit.popped.length, hit.fill, G, F), 'Perfect');
+  }
+});
+
+test('채운 비율 공정성: 같은 자세 ±8° 흔들림이면 어른·아이 채운 비율 차이 10%p 이내', () => {
+  for (const id of ['star', 't-pose', 'manse', 'muscle']) {
+    for (const off of [4, 8, -8]) {
+      const p = pose(id);
+      const a = hitWall(makeWall(p, ADULT, H, FLOOR, CFG, 1), capsules(poseJoints(tilt(p, off), ADULT, H, 0, FLOOR))).fill;
+      const c = hitWall(makeWall(p, CHILD, H, FLOOR, CFG, 1), capsules(poseJoints(tilt(p, off), CHILD, H, 0, FLOOR))).fill;
+      assert.ok(Math.abs(a - c) <= 0.1, `${id} ${off}°: 어른 ${a.toFixed(2)}, 아이 ${c.toFixed(2)}`);
     }
   }
 });
@@ -93,15 +132,20 @@ test('판정 공정성(NFR-03): 같은 자세로 통과하면(사람이 내는 �
   }
 });
 
-test('판정 문구와 점수(100점 만점)', () => {
-  const g = { perfect: 0, great: 5, good: 15 };
-  assert.equal(gradeOf(0, g), 'Perfect');
-  assert.equal(gradeOf(5, g), 'Great');
-  assert.equal(gradeOf(15, g), 'Good');
-  assert.equal(gradeOf(16, g), 'Oops');
-  assert.equal(totalScore([0, 0, 0, 0, 0, 0, 0], 40), 100);
-  assert.equal(totalScore([40, 40, 40, 40], 40), 0);
-  assert.equal(totalScore([0, 20], 40), 75);
+test('판정 문구와 점수(100점 만점, 채운 비율 × 벽 감점)', () => {
+  assert.equal(gradeOf(0, 0.9, G, F), 'Perfect');
+  assert.equal(gradeOf(0, 0.8, G, F), 'Great');
+  assert.equal(gradeOf(5, 0.95, G, F), 'Great');
+  assert.equal(gradeOf(15, 0.6, G, F), 'Good');
+  assert.equal(gradeOf(0, 0.3, G, F), 'Oops');
+  assert.equal(gradeOf(16, 1, G, F), 'Oops');
+  const all = (popped: number, fill: number, n: number) => Array.from({ length: n }, () => ({ popped, fill }));
+  assert.equal(totalScore(all(0, 1, 7), 40), 100);
+  assert.equal(totalScore(all(40, 1, 4), 40), 0);
+  assert.equal(totalScore(all(0, 0.85, 4), 40), 100);
+  assert.equal(totalScore(all(0, 0.3, 4), 40), 0);
+  assert.equal(totalScore(all(0, 0.575, 4), 40), 50);
+  assert.equal(totalScore([{ popped: 0, fill: 1 }, { popped: 20, fill: 1 }], 40), 75);
 });
 
 test('자세 고르기: 반복 없이, 뒤로 갈수록 레벨이 오른다 / 다가오는 시간 8초 → 5초', () => {

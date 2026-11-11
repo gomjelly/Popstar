@@ -9,13 +9,14 @@ import {
   approachSec,
   capsules,
   gradeOf,
+  hitWall,
   makeWall,
   pickPoses,
-  poppedBubbles,
   totalScore,
   wallScore,
   type Grade,
   type Wall,
+  type WallHit,
   type WallPose,
 } from '../game/wall/geometry';
 import { liveJoints } from '../game/wall/profile';
@@ -29,6 +30,8 @@ type Phase = 'countdown' | 'approach' | 'result';
 interface WallResult {
   pose: WallPose;
   popped: number;
+  /** 금색 풍선 채운 비율 0~1 */
+  fill: number;
   grade: Grade;
   score: number;
 }
@@ -68,7 +71,7 @@ export class WallScreen implements Screen {
   private lastCount = -1;
   private beeps = 0;
   /** 판정 창 안에서 가장 잘 맞은 프레임(터진 거품이 가장 적은) */
-  private best: number[] | null = null;
+  private best: { hit: WallHit; score: number } | null = null;
   private judged = false;
   private startedAt = '';
 
@@ -139,7 +142,7 @@ export class WallScreen implements Screen {
     const t = this.clock - this.phaseAt;
     return (
       `phase=${this.phase} wall=${this.index + 1}/${this.walls.length} pose=${w?.pose.id ?? '-'} t=${t.toFixed(1)}/${this.dur().toFixed(1)} ` +
-      `results=[${this.results.map((r) => `${r.pose.id}:${r.popped}:${r.grade}`).join(',')}] best=${this.best?.length ?? '-'}`
+      `results=[${this.results.map((r) => `${r.pose.id}:${r.popped}:${(r.fill * 100).toFixed(0)}%:${r.grade}`).join(',')}] best=${this.best ? `${this.best.hit.popped.length}/${(this.best.hit.fill * 100).toFixed(0)}%` : '-'}`
     );
   }
 
@@ -202,8 +205,13 @@ export class WallScreen implements Screen {
 
     // 판정 창(통과 순간 ±0.15초): 가장 잘 맞는 프레임으로 판정(FR-WALL-23)
     if (!this.judged && t >= dur - win) {
-      const pop = this.livePopped(wall);
-      if (pop && (!this.best || pop.length < this.best.length)) this.best = pop;
+      // 가장 점수가 높은 프레임(채운 비율 × 벽 감점)을 고른다
+      const hit = this.liveHit(wall);
+      if (hit) {
+        const w = config.wall;
+        const score = wallScore(hit.popped.length, hit.fill, 1, w.zeroScoreBubbles, w.fillGrades.perfect, w.zeroFill);
+        if (!this.best || score > this.best.score) this.best = { hit, score };
+      }
       if (t >= dur + win) this.judge(wall);
     }
 
@@ -239,37 +247,40 @@ export class WallScreen implements Screen {
     this.app.log(`wall ${this.index + 1} ${wall.pose.id} holes=${wall.bubbles.filter((b) => b.hole).length} dur=${this.dur().toFixed(2)}s`);
   }
 
-  /** 지금 아바타와 겹치는 거품 */
-  private livePopped(wall: Wall): number[] | null {
+  /** 지금 아바타와 겹치는 벽 거품과 채운 금색 풍선 */
+  private liveHit(wall: Wall): WallHit | null {
     const s = this.app.session;
     const slot = this.app.tracker.slots[0];
     if (!s || !slot.present || !slot.pts) return null;
     const j = liveJoints(slot.pts, s.transforms[0], config.wall.playerScreenHeight, config.common.minVisibility);
-    return poppedBubbles(wall, capsules(j));
+    return hitWall(wall, capsules(j));
   }
 
   private judge(wall: Wall): void {
     this.judged = true;
     const w = config.wall;
-    // 판정 창에서 한 번도 못 봤으면(카메라 밖) 전부 터진 것으로
-    const popped = this.best ?? wall.bubbles.map((_, i) => i).filter((i) => !wall.bubbles[i].hole);
+    // 판정 창에서 한 번도 못 봤으면(카메라 밖) 하나도 못 채운 것으로
+    const hit: WallHit = this.best?.hit ?? { popped: [], filled: [], fill: 0 };
+    const popped = hit.popped;
     const n = popped.length;
-    const grade = gradeOf(n, w.grades);
-    const score = wallScore(n, this.walls.length, w.zeroScoreBubbles);
-    this.results.push({ pose: wall.pose, popped: n, grade, score });
+    const fill = hit.fill;
+    const grade = gradeOf(n, fill, w.grades, w.fillGrades);
+    const score = wallScore(n, fill, this.walls.length, w.zeroScoreBubbles, w.fillGrades.perfect, w.zeroFill);
+    this.results.push({ pose: wall.pose, popped: n, fill, grade, score });
     this.view.pop(popped);
+    this.view.collect(hit.filled);
     // 터지는 소리(너무 많으면 몇 번만)
     for (let k = 0; k < Math.min(n, 6); k++) setTimeout(() => this.app.sound.play('bubble'), k * 45);
     this.app.sound.play(grade === 'Perfect' ? 'cheer' : grade === 'Great' ? 'gold' : grade === 'Good' ? 'heart' : 'miss');
     const g = $('wGrade');
     g.className = `w-grade ${grade}`;
-    g.innerHTML = `${grade}<small>${GRADE_KO[grade]}${n ? ` · 거품 ${n}개` : ''}</small>`;
+    g.innerHTML = `${grade}<small>${GRADE_KO[grade]} · 채움 ${Math.round(fill * 100)}%${n ? ` · 벽 ${n}개` : ''}</small>`;
     g.hidden = false;
     g.style.animation = 'none';
     void g.offsetWidth;
     g.style.animation = '';
     const where = popped.slice(0, 6).map((i) => `(${wall.bubbles[i].x.toFixed(2)},${wall.bubbles[i].y.toFixed(2)})`).join('');
-    this.app.log(`judge ${wall.pose.id} popped=${n} grade=${grade} ${where}`);
+    this.app.log(`judge ${wall.pose.id} popped=${n} fill=${(fill * 100).toFixed(0)}% (${hit.filled.length}/${wall.targetCount}) grade=${grade} ${where}`);
     this.hud();
   }
 
@@ -289,16 +300,13 @@ export class WallScreen implements Screen {
     $('wBanner').hidden = true;
     $('wPreviewBox').hidden = true;
     const w = config.wall;
-    const total = totalScore(
-      this.results.map((r) => r.popped),
-      w.zeroScoreBubbles,
-    );
+    const total = totalScore(this.results, w.zeroScoreBubbles, w.fillGrades.perfect, w.zeroFill);
     const perfect = this.results.filter((r) => r.grade === 'Perfect').length;
     $('wrTitle').textContent = perfect === this.results.length ? '모두 Perfect!' : '통과 완료!';
     $('wrScore').textContent = `${total}점`;
     $('wrInfo').textContent = `벽 ${this.results.length}개 · Perfect ${perfect}개`;
     $('wrList').innerHTML = this.results
-      .map((r, i) => `<span>${i + 1}. ${r.pose.name}</span><span class="${r.grade}">${r.grade} · 거품 ${r.popped}개 · ${r.score.toFixed(1)}점</span>`)
+      .map((r, i) => `<span>${i + 1}. ${r.pose.name}</span><span class="${r.grade}">${r.grade} · 채움 ${Math.round(r.fill * 100)}% · 벽 ${r.popped}개 · ${r.score.toFixed(1)}점</span>`)
       .join('');
     $('wResult').hidden = false;
     this.app.sound.play(perfect === this.results.length ? 'stageClear' : 'cheer');
@@ -320,7 +328,7 @@ export class WallScreen implements Screen {
         playerIds: s.participants.map((p) => p.player?.id ?? null),
         playerNames: s.participants.map((p) => p.name),
         stage: this.results.length,
-        stageScores: this.results.map((r) => r.popped),
+        stageScores: this.results.map((r) => Math.round(r.score * 10) / 10),
         maxCombo: perfect,
       }).catch((err) => console.warn('기록 저장 실패', err));
     }
@@ -351,9 +359,9 @@ function drawPreview(cv: HTMLCanvasElement, wall: Wall): void {
   const k = Math.min(sx, sy);
   const ox = (W - (wall.x1 - wall.x0) * k) / 2;
   const oy = (H - (wall.y1 - wall.y0) * k) / 2;
-  g.fillStyle = '#9ee3ff';
   for (const b of wall.bubbles) {
-    if (b.hole) continue;
+    if (b.hole && !b.target) continue;
+    g.fillStyle = b.target ? '#ffd23f' : '#9ee3ff';
     g.beginPath();
     g.arc(ox + (b.x - wall.x0) * k, H - oy - (b.y - wall.y0) * k, wall.r * k * 0.95, 0, Math.PI * 2);
     g.fill();

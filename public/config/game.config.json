@@ -25,6 +25,8 @@
     "holeMarginBubbles": { "easy": 1.5, "normal": 1.0, "hard": 0.6 },
     "zeroScoreBubbles": 40,
     "grades": { "perfect": 0, "great": 5, "good": 15 },
+    "fillGrades": { "perfect": 0.85, "great": 0.7, "good": 0.5 },
+    "zeroFill": 0.3,
     "snapshotMode": "photo",
     "difficulty": "normal",
     "calibHoldMs": 3000,

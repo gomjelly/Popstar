@@ -116,6 +116,7 @@ function mergeWall(w: Partial<WallParams> | undefined): WallParams {
     approachSec: { ...d.approachSec, ...w.approachSec },
     holeMarginBubbles: { ...d.holeMarginBubbles, ...w.holeMarginBubbles },
     grades: { ...d.grades, ...w.grades },
+    fillGrades: { ...d.fillGrades, ...w.fillGrades },
   };
 }
 
