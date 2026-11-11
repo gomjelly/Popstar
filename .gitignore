@@ -1,0 +1,10 @@
+node_modules/
+dist/
+public/mediapipe/
+public/models/
+*.log
+snaps/
+test-videos/
+videos/
+.test-profile/
+Popstar SRS.md
