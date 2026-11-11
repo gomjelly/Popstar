@@ -290,7 +290,7 @@ export class BalloonScreen implements Screen {
     if (!s) return [];
     const out: Hand[] = [];
     this.app.tracker.slots.forEach((slot, i) => {
-      if (i >= s.participants.length || !slot.present || !slot.pts) return;
+      if (i >= s.participants.length || !slot.present || !slot.pts || this.app.testBotOnly) return;
       const p = slot.pts;
       for (const [wr, idx] of [
         [LM.leftWrist, LM.leftIndex],
@@ -306,7 +306,17 @@ export class BalloonScreen implements Screen {
       const g = this.game;
       const split = s.participants.length > 1;
       this.bot = this.bot.map((h) => {
-        const mine = g.balloons.filter((b) => b.kind !== 'bomb' && (!split || (h.player === 0 ? b.x < 0.05 : b.x > -0.05)) && b.y < g.area.y1);
+        // 가는 길에 폭탄이 있는 풍선은 고르지 않는다
+        const hr = g.handRadius();
+        const bombs = g.balloons.filter((b) => b.kind === 'bomb');
+        const seg = (px: number, py: number, bx: number, by: number) => {
+          const vx = bx - h.x;
+          const vy = by - h.y;
+          const t = Math.max(0, Math.min(1, ((px - h.x) * vx + (py - h.y) * vy) / (vx * vx + vy * vy || 1)));
+          return Math.hypot(px - h.x - vx * t, py - h.y - vy * t);
+        };
+        const safe = (b: { x: number; y: number }) => bombs.every((m) => seg(m.x, m.y, b.x, b.y) > m.r + hr * 1.2);
+        const mine = g.balloons.filter((b) => b.kind !== 'bomb' && (!split || (h.player === 0 ? b.x < 0.05 : b.x > -0.05)) && b.y < g.area.y1 && safe(b));
         const target = mine.sort((a, b) => a.y - b.y)[0];
         if (!target) return h;
         const dx = target.x - h.x;

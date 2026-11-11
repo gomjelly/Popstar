@@ -38,22 +38,22 @@ export const DEFAULT_BALLOON: BalloonParams = {
   maxLives: 5,
   missesPerLife: 5,
   sideStepRatio: 0.5,
-  start: { spawnIntervalMs: 900, fallSpeed: 0.25, bombRatio: 0.08, balloonSize: 0.09 },
-  perStage: { spawnInterval: 0.88, fallSpeed: 1.08, bombRatioAdd: 0.03, balloonSize: 0.95 },
-  limits: { minSpawnIntervalMs: 350, maxFallSpeed: 0.7, maxBombRatio: 0.25, minBalloonSize: 0.06 },
+  start: { spawnIntervalMs: 450, fallSpeed: 0.25, bombRatio: 0.05, balloonSize: 0.14 },
+  perStage: { spawnInterval: 0.88, fallSpeed: 1.08, bombRatioAdd: 0.02, balloonSize: 0.95 },
+  limits: { minSpawnIntervalMs: 180, maxFallSpeed: 0.7, maxBombRatio: 0.2, minBalloonSize: 0.09 },
   specialRatio: { gold: 0.05, heart: 0.015, clock: 0.02, star: 0.02, bubble: 0.08 },
   points: { normal: 10, gold: 50, bubble: 5, giant: 40, clearPerLife: 100 },
   combo: [
     { at: 5, multiplier: 1.5 },
     { at: 10, multiplier: 2.0 },
   ],
-  handRadius: 0.06,
+  handRadius: 0.09,
   minGapArms: 1.0,
   windFromStage: 4,
   windSpeed: 0.12,
   slowSec: 3,
   slowFactor: 0.4,
-  skyRatio: 0.4,
+  skyRatio: 0.5,
 };
 
 /** 게임 좌표의 사각형(y0 = 아래, y1 = 위) */
@@ -369,7 +369,7 @@ export class BalloonGame {
   private spawn(d: StageDifficulty): Balloon {
     const H = this.areaH;
     const kind = this.pickKind(d);
-    const sizeK = kind === 'bubble' ? 0.6 : 1;
+    const sizeK = kind === 'bubble' ? 0.75 : 1;
     const speedK = kind === 'gold' ? 1.6 : kind === 'bubble' ? 0.5 : 1;
     const r = (d.balloonSize * H * sizeK) / 2;
     const W = this.area.x1 - this.area.x0;

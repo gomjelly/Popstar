@@ -246,6 +246,23 @@ class Person {
 // ---------- 대본 ----------
 const adult = new Person(1.75, '#3f8f5a', '#2b3550', '#2a1d14', false);
 const child = PEOPLE > 1 ? new Person(1.2, '#f2b632', '#6a3f8c', '#3b2414', true) : null;
+/** 구경꾼(?bystander=1): 화면 가장자리에서 서성이며 손을 흔드는 사람 — 추적이 흔들리지 않는지 확인용 */
+const BYSTANDER = params.get('bystander') === '1';
+const bystander = BYSTANDER ? new Person(1.65, '#c0392b', '#3a3a3a', '#1a1a1a', false) : null;
+
+function bystanderPose(t: number): BodyPose {
+  const p: BodyPose = { x: -2.05 + 0.35 * Math.sin(t * 0.45), z: -3.0, bob: 0, armL: rest(), armR: rest(), legL: legRest(), legR: legRest(), headYaw: 0 };
+  // 가끔 손을 흔든다
+  const wave = smooth(0.2, 0.5, Math.sin(t * 0.3) * 0.5 + 0.5);
+  p.armR = { abd: lerp(12, 150 + 20 * Math.sin(t * 6), wave), flex: 0, bend: lerp(6, 20, wave) };
+  const moving = Math.abs(Math.cos(t * 0.45)) > 0.3 ? 0.7 : 0;
+  if (moving) {
+    const wk = walk(t, moving, 0.5);
+    p.legL = wk.l;
+    p.legR = wk.r;
+  }
+  return p;
+}
 
 const smooth = (a: number, b: number, t: number) => {
   const x = Math.max(0, Math.min(1, (t - a) / (b - a)));
@@ -395,6 +412,7 @@ function frame(): void {
   const t = ((performance.now() - t0) / 1000) % DURATION;
   adult.pose(SCRIPT === 'balloon' ? adultBalloon(t) : SCRIPT === 'wall' ? wallPose(t) : adultPose(t));
   child?.pose(SCRIPT === 'balloon' ? childBalloon(t) : childPose(t));
+  bystander?.pose(bystanderPose(t));
   renderer.render(scene, camera);
   info.textContent = `${PEOPLE}명 · ${t.toFixed(1)}s / ${DURATION}s`;
   requestAnimationFrame(frame);

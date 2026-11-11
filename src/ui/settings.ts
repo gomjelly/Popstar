@@ -2,6 +2,7 @@
 // 카메라가 없을 때를 위해 동영상 파일·화면 캡처 입력도 고를 수 있다(테스트용).
 
 import { $, App, type Screen } from '../app';
+import { config } from '../config';
 import { listCameras, savedCameraId } from '../pose/camera';
 import type { ModelKind } from '../pose/poseTracker';
 import type { CaptureSource, DisplayInfo } from '../types/popstar';
@@ -44,6 +45,19 @@ export class SettingsScreen implements Screen {
     const prev = $<HTMLInputElement>('previewToggle');
     prev.checked = app.previewPref;
     prev.addEventListener('change', () => app.setPreview(prev.checked));
+    // 가벼운 모드: 느린 노트북용 묶음 설정(인식 모델 Lite, 카메라 640×480, 화면 그리기 0.75배)
+    const light = $<HTMLInputElement>('lightToggle');
+    light.checked = localStorage.getItem('popstar.light') === '1';
+    light.addEventListener('change', () => {
+      const on = light.checked;
+      localStorage.setItem('popstar.light', on ? '1' : '0');
+      model.value = on ? 'lite' : 'full';
+      model.dispatchEvent(new Event('change'));
+      this.resSelect.value = on ? '640x480' : '1280x720';
+      this.resSelect.dispatchEvent(new Event('change'));
+      app.avatars.setRenderScale(on ? 0.75 : 1);
+      toast(on ? '가벼운 모드를 켰어요' : '가벼운 모드를 껐어요');
+    });
     const hand = $<HTMLInputElement>('handToggle');
     hand.checked = app.handCursorOn;
     hand.addEventListener('change', () => app.setHandCursor(hand.checked));
@@ -184,7 +198,7 @@ export class SettingsScreen implements Screen {
   async initModel(): Promise<void> {
     this.status('인식 모델 준비 중…');
     try {
-      const used = await this.app.pose.init(this.app.modelKind, 'GPU', 2);
+      const used = await this.app.pose.init(this.app.modelKind, 'GPU', config.common.detectPoses);
       this.status(`인식 모델: ${this.app.modelKind} (${used})`);
     } catch (err) {
       console.error(err);

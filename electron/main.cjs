@@ -17,6 +17,7 @@ const isDev = process.argv.includes('--dev');
 //   --start=<화면>             시작 화면: main | games | hall | add-player | settings | select:<게임> | calib:<게임> | play:<게임>
 //                             calib/play 는 손님으로 자동 채운다. 게임: wall | balloon-1p | balloon-coop | balloon-versus
 //   --seed-players=<N>        시험용 플레이어 N명을 만든다(이미 있으면 건너뜀)
+//   --bot-only                --bot-hands 와 같고, 영상 속 사람 손은 판정에서 뺀다(진행 검증용)
 //   --bot-hands               풍선 게임에서 가장 가까운 풍선으로 움직이는 봇 손을 함께 쓴다(3스테이지 검증용)
 //   --wall-poses=stand,star   벽 게임 자세를 이 목록으로 고정한다(검증용)
 //   --mirror=0|1              거울 반전을 이번 실행에만 끄거나 켠다(설정은 바꾸지 않음)
@@ -35,7 +36,8 @@ const testCaptureTitle = argValue('test-capture');
 const logMetrics = process.argv.includes('--log-metrics');
 const startRoute = argValue('start');
 const seedPlayers = Number(argValue('seed-players')) || 0;
-const botHands = process.argv.includes('--bot-hands');
+const botOnly = process.argv.includes('--bot-only');
+const botHands = process.argv.includes('--bot-hands') || botOnly;
 const wallPoses = argValue('wall-poses');
 const mirrorArg = argValue('mirror');
 const handArg = argValue('hand');
@@ -239,6 +241,7 @@ ipcMain.handle('test:config', () => ({
   startRoute,
   seedPlayers,
   botHands,
+  botOnly,
   wallPoses,
   mirror: mirrorArg,
   hand: handArg,

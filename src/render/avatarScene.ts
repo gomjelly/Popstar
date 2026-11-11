@@ -2,6 +2,7 @@
 // Three.js 정사영 카메라로 게임 좌표(화면 높이 = 1, 바닥 y = 0)를 그대로 그린다.
 
 import * as THREE from 'three';
+import { config } from '../config';
 import { measure } from '../pose/body';
 import { LM, type Pt } from '../pose/landmarks';
 import type { NormTransform, Vec2 } from '../pose/transform';
@@ -235,7 +236,8 @@ export class AvatarScene {
 
   constructor(readonly canvas: HTMLCanvasElement, count: number) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    // 성능: 고해상도(HiDPI) 노트북에서 2배로 그리면 픽셀이 4배라 느려진다. 프로젝터는 1배로도 충분
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, AvatarScene.savedScale()));
     for (let i = 0; i < count; i++) {
       const a = new Avatar('#ffffff');
       a.group.position.z = i * 0.1;
@@ -245,6 +247,18 @@ export class AvatarScene {
     this.floor = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.12 }));
     this.floor.position.z = -0.5;
     this.scene.add(this.floor);
+    this.resize();
+  }
+
+  /** 설정(가벼운 모드)에서 바꾼 배율이 있으면 그것, 없으면 설정 파일 값 */
+  static savedScale(): number {
+    const v = Number(localStorage.getItem('popstar.renderScale'));
+    return v > 0 ? v : config.common.renderScale;
+  }
+
+  setRenderScale(s: number): void {
+    localStorage.setItem('popstar.renderScale', String(s));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, s));
     this.resize();
   }
 

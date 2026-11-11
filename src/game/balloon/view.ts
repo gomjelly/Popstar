@@ -42,8 +42,17 @@ const knotGeo = (() => {
   return new THREE.ShapeGeometry(s);
 })();
 
-const basic = (color: string, opacity = 1) =>
-  new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
+// 성능: 같은 색·투명도의 재질은 하나를 함께 쓴다(풍선마다 새로 만들지 않음 → 메모리·GC·상태 전환 감소)
+const materials = new Map<string, THREE.MeshBasicMaterial>();
+const basic = (color: string, opacity = 1): THREE.MeshBasicMaterial => {
+  const key = color + '|' + opacity;
+  let m = materials.get(key);
+  if (!m) {
+    m = new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 });
+    materials.set(key, m);
+  }
+  return m;
+};
 
 function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, sx = 1, sy = sx): THREE.Mesh {
   const m = new THREE.Mesh(geo, mat);
@@ -123,6 +132,8 @@ interface Particle {
   vy: number;
   life: number;
   max: number;
+  /** 처음 크기(시간이 지나며 작아지며 사라진다 — 재질을 공유하므로 투명도 대신 크기로) */
+  size: number;
 }
 
 export function balloonColor(b: Balloon): string {
@@ -148,6 +159,8 @@ export class BalloonView {
   readonly root = new THREE.Group();
   private items = new Map<number, ReturnType<typeof makeBalloon>>();
   private particles: Particle[] = [];
+  /** 다 쓴 조각(다시 쓴다) */
+  private spare: THREE.Mesh[] = [];
   private rings: THREE.Mesh[] = [];
   private t = 0;
 
@@ -184,17 +197,22 @@ export class BalloonView {
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2 + Math.random() * 0.3;
       const sp = r * (3 + Math.random() * 3);
-      const m = mesh(circle, basic(color, 1), x, y, 0.05, r * (0.12 + Math.random() * 0.12));
-      (m.material as THREE.MeshBasicMaterial).transparent = true;
-      this.root.add(m);
-      this.particles.push({ m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.45 + Math.random() * 0.25 });
+      const size = r * (0.12 + Math.random() * 0.12);
+      const m = this.spare.pop() ?? mesh(circle, basic(color));
+      m.material = basic(color);
+      m.position.set(x, y, 0.05);
+      m.scale.setScalar(size);
+      m.visible = true;
+      if (!m.parent) this.root.add(m);
+      this.particles.push({ m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.45 + Math.random() * 0.25, size });
     }
   }
 
   /** 손 판정 원 */
   setHands(hands: Hand[], radius: number, colors: string[]): void {
     while (this.rings.length < hands.length) {
-      const m = mesh(ring, basic('#ffffff', 0.55), 0, 0, 0.6);
+      // 손 원은 사람마다 색을 바꾸므로 재질을 따로 둔다
+      const m = mesh(ring, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55, depthWrite: false }), 0, 0, 0.6);
       this.root.add(m);
       this.rings.push(m);
     }
@@ -210,31 +228,36 @@ export class BalloonView {
 
   update(dt: number): void {
     this.t += dt;
-    for (const p of [...this.particles]) {
+    let w = 0;
+    for (const p of this.particles) {
       p.life += dt;
       p.m.position.x += p.vx * dt;
       p.m.position.y += p.vy * dt;
       p.vy -= 1.2 * dt;
       const k = 1 - p.life / p.max;
-      (p.m.material as THREE.MeshBasicMaterial).opacity = Math.max(0, k);
-      if (p.life >= p.max) {
-        this.root.remove(p.m);
-        (p.m.material as THREE.Material).dispose();
-        this.particles.splice(this.particles.indexOf(p), 1);
+      if (k <= 0) {
+        p.m.visible = false;
+        this.spare.push(p.m);
+        continue;
       }
+      p.m.scale.setScalar(p.size * (0.4 + 0.6 * k));
+      this.particles[w++] = p;
     }
+    this.particles.length = w;
   }
 
-  /** 풍선 그룹을 빼고 재질을 정리한다(기하는 함께 쓰므로 그대로 둔다) */
+  /** 풍선 그룹을 뺀다(기하·재질은 함께 쓰므로 그대로 둔다) */
   private drop(g: THREE.Object3D): void {
     this.root.remove(g);
-    g.traverse((o) => ((o as THREE.Mesh).material as THREE.Material | undefined)?.dispose?.());
   }
 
   clear(): void {
     for (const it of this.items.values()) this.drop(it.group);
     this.items.clear();
-    for (const p of this.particles) this.root.remove(p.m);
+    for (const p of this.particles) {
+      p.m.visible = false;
+      this.spare.push(p.m);
+    }
     this.particles = [];
     this.setHands([], 0, []);
   }

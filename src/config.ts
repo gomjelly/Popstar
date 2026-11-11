@@ -35,6 +35,10 @@ export interface CommonConfig {
   minVisibility: number;
   cursorZone: CursorZoneConfig;
   photoCountdownSec: number;
+  /** 한 번에 찾을 사람 수(구경꾼까지 보고 그중 참가자를 고른다). 많을수록 느려진다 */
+  detectPoses: number;
+  /** 화면을 그리는 해상도 배율(1 = 창 크기 그대로). 느리면 0.75 */
+  renderScale: number;
 }
 
 export interface GameConfig {
@@ -59,6 +63,8 @@ const DEFAULTS: GameConfig = {
     minVisibility: 0.5,
     cursorZone: { width: 1.7, height: 1.25, outward: 0.35, up: 0.25 },
     photoCountdownSec: 3,
+    detectPoses: 3,
+    renderScale: 1,
   },
   wall: DEFAULT_WALL,
   balloon: DEFAULT_BALLOON,

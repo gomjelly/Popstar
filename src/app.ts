@@ -8,7 +8,7 @@ import { AppearanceSampler } from './pose/appearance';
 import { Camera, type SourceInfo } from './pose/camera';
 import { measure } from './pose/body';
 import { LM, toCameraSpace, type Pt } from './pose/landmarks';
-import { PlayerTracker } from './pose/playerTracker';
+import { PlayerTracker, priorityOf } from './pose/playerTracker';
 import { PoseTracker, type ModelKind } from './pose/poseTracker';
 import { NormTransform } from './pose/transform';
 import { AvatarScene, type AvatarDraw, type AvatarInfo } from './render/avatarScene';
@@ -101,6 +101,8 @@ export class App {
   paused = false;
   /** 검증용(--bot-hands): 풍선 게임에서 봇 손을 함께 쓴다 */
   testBot = false;
+  /** 검증용: 영상 속 손은 빼고 봇 손만 */
+  testBotOnly = false;
   /** 검증용: 확인 버튼을 자동으로 누른다 */
   testAuto = false;
 
@@ -109,6 +111,13 @@ export class App {
   readonly poseRate = new Rate();
   readonly renderRate = new Rate();
   inferMs = 0;
+  /** 한 프레임 처리 시간(인식 + 화면 갱신 + 그리기, ms, 평균) */
+  frameMs = 0;
+  /** 인식 사이 최소 간격(ms). 인식이 느린 컴퓨터에서는 늘려서 화면을 먼저 부드럽게 그린다 */
+  detectGapMs = 0;
+  private lastDetectAt = 0;
+  /** 이번 프레임에 찾은 사람(후보) 수와 우선순위 — 검증 로그용 */
+  lastCandidates = "";
   private lastVideoTime = -1;
   private newVideoFrame = false;
   private readonly frameCallbackOk = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
@@ -186,6 +195,10 @@ export class App {
     next.el.removeAttribute('hidden');
     this.setPaused(false);
     this.tracker.mode = name === 'play' ? 'game' : 'menu';
+    // 게임·보정 화면에서는 참가 인원만 추적한다(구경꾼 무시). 사진 찍기는 한 명.
+    const gameScreen = name === 'calib' || name === 'play' || name === 'balloon' || name === 'wall';
+    this.tracker.limit =
+      gameScreen && this.session ? this.session.participants.length : name === 'add-player' ? 1 : config.common.maxPlayers;
     $('backBtn').hidden = !next.backTo;
     $('gearBtn').hidden = name !== 'main';
     this.hover.hideAll();
@@ -257,12 +270,17 @@ export class App {
   // ---------- 매 프레임 ----------
 
   frame(now: number): void {
+    const t0 = performance.now();
     this.renderRate.tick(now);
     const v = this.video;
+    // 인식이 오래 걸리면(느린 노트북) 매 카메라 프레임마다 인식하지 않고 간격을 둔다.
+    // 그동안에는 화면만 그려서 끊김을 줄인다(인식 18ms 넘으면 인식 시간의 1.8배 간격).
+    this.detectGapMs = this.inferMs > 18 ? this.inferMs * 1.8 : 0;
     // 카메라 스트림은 currentTime이 화면 갱신마다 늘어나므로, 새 프레임 알림(requestVideoFrameCallback)으로
     // 실제로 새 영상 프레임이 왔을 때만 인식한다(같은 프레임을 여러 번 인식하지 않게).
     const fresh = this.frameCallbackOk ? this.newVideoFrame : v.currentTime !== this.lastVideoTime;
-    if (v.readyState >= 2 && fresh) {
+    if (v.readyState >= 2 && fresh && now - this.lastDetectAt >= this.detectGapMs) {
+      this.lastDetectAt = now;
       this.newVideoFrame = false;
       this.lastVideoTime = v.currentTime;
       this.camRate.tick(now);
@@ -272,6 +290,7 @@ export class App {
         this.poseRate.tick(now);
         this.detections++;
         const cam = r.poses.map((p) => toCameraSpace(p, this.videoAspect, this.mirror));
+        this.lastCandidates = cam.map((p) => `${p[23].x.toFixed(2)}:${priorityOf(p, this.videoAspect).toFixed(2)}`).join(",");
         let looks: ReturnType<AppearanceSampler['measure']>[] = [];
         if (r.poses.length) {
           this.looks.capture(v);
@@ -291,6 +310,7 @@ export class App {
     this.drawAvatars();
     this.updateCursors(now);
     this.drawPreview();
+    this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;
   }
 
   /** 지금 화면 규칙에 맞는 아바타 그리기 */

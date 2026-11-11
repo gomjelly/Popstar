@@ -33,10 +33,29 @@ function place(g: BalloonGame, kind: Balloon['kind'], x: number, y: number): Bal
   return b;
 }
 
-/** 가장 가까운 안전한 풍선으로 손을 움직이는 봇 */
+/** 점과 선분 사이 거리 */
+function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const vx = bx - ax;
+  const vy = by - ay;
+  const l2 = vx * vx + vy * vy || 1;
+  const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / l2));
+  return Math.hypot(px - ax - vx * t, py - ay - vy * t);
+}
+
+/** 가는 길에 폭탄이 없는 풍선 중 가장 낮은 것으로 손을 움직이는 봇(폭탄은 피한다) */
 function botHands(g: BalloonGame, hands: Hand[], dt: number, speed: number): Hand[] {
+  const hr = g.handRadius();
+  const bombs = g.balloons.filter((b) => b.kind === 'bomb');
   return hands.map((h) => {
-    const target = g.balloons.filter((b) => b.kind !== 'bomb').sort((a, b) => a.y - b.y)[0];
+    const safe = (b: Balloon) => bombs.every((m) => segDist(m.x, m.y, h.x, h.y, b.x, b.y) > m.r + hr * 1.2);
+    const target = g.balloons.filter((b) => b.kind !== 'bomb' && b.y < g.area.y1 && safe(b)).sort((a, b) => a.y - b.y)[0];
+    // 갈 곳이 없으면 가까운 폭탄에서 멀어진다
+    if (!target) {
+      const m = bombs.sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y))[0];
+      if (!m || Math.hypot(m.x - h.x, m.y - h.y) > m.r + hr * 2) return h;
+      const d = Math.hypot(h.x - m.x, h.y - m.y) || 1;
+      return { ...h, x: h.x + ((h.x - m.x) / d) * speed * dt, y: h.y + ((h.y - m.y) / d) * speed * dt };
+    }
     if (!target) return h;
     const dx = target.x - h.x;
     const dy = target.y - h.y;
@@ -50,15 +69,15 @@ test('스테이지마다 어려워지고 상·하한을 넘지 않는다', () =>
   const p = params();
   const s1 = difficulty(p, 1);
   const s2 = difficulty(p, 2);
-  assert.equal(s1.spawnIntervalMs, 900);
-  assert.ok(Math.abs(s2.spawnIntervalMs - 900 * 0.88) < 1e-9);
+  assert.equal(s1.spawnIntervalMs, 450);
+  assert.ok(Math.abs(s2.spawnIntervalMs - 450 * 0.88) < 1e-9);
   assert.ok(Math.abs(s2.fallSpeed - 0.25 * 1.08) < 1e-9);
-  assert.ok(Math.abs(s2.bombRatio - 0.11) < 1e-9);
+  assert.ok(Math.abs(s2.bombRatio - 0.07) < 1e-9);
   const s30 = difficulty(p, 30);
-  assert.equal(s30.spawnIntervalMs, 350);
+  assert.equal(s30.spawnIntervalMs, 180);
   assert.equal(s30.fallSpeed, 0.7);
-  assert.equal(s30.bombRatio, 0.25);
-  assert.equal(s30.balloonSize, 0.06);
+  assert.equal(s30.bombRatio, 0.2);
+  assert.equal(s30.balloonSize, 0.09);
   assert.equal(difficulty(p, 3).wind, 0);
   assert.notEqual(difficulty(p, 4).wind, 0);
 });
@@ -78,7 +97,7 @@ test('풍선은 영역 위쪽 밖에서 생겨 영역 가로 범위 안에 고�
     for (const e of g.update(0.05, [])) if (e.type === 'spawn') {
       xs.push(e.balloon.x);
       assert.ok(e.balloon.y > AREA.y1, '위쪽 밖에서 생김');
-      assert.ok(e.balloon.x - e.balloon.r >= AREA.x0 - 1e-9 && e.balloon.x + e.balloon.r <= AREA.x1 + 1e-9);
+      assert.ok(e.balloon.baseX - e.balloon.r >= AREA.x0 - 1e-9 && e.balloon.baseX + e.balloon.r <= AREA.x1 + 1e-9);
     }
     if (g.phase !== 'playing') break;
   }

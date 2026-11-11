@@ -86,6 +86,7 @@ async function boot(): Promise<void> {
   await settings.refreshCameraList();
 
   if (test?.botHands) app.testBot = true;
+  if (test?.botOnly) app.testBotOnly = true;
   if (test?.wallPoses) wall.testPoses = test.wallPoses.split(',').map((x) => x.trim()).filter(Boolean);
   // 자동 실행(--start)에서는 확인 버튼(보정 결과 등)을 잠시 뒤 자동으로 누른다
   if (test?.startRoute) app.testAuto = true;
@@ -223,8 +224,11 @@ async function setupTestHooks(
           `cam=${app.camRate.rate(now)}fps`,
           `pose=${app.poseRate.rate(now)}fps`,
           `infer=${app.inferMs.toFixed(1)}ms`,
+          `frame=${app.frameMs.toFixed(1)}ms`,
+          app.detectGapMs ? `detectGap=${app.detectGapMs.toFixed(0)}ms` : '',
           `render=${app.renderRate.rate(now)}fps`,
           `people=${t.presentCount}`,
+          `cands=[${app.lastCandidates}]`,
           slots,
           cursors,
           app.paused ? 'PAUSED' : '',

@@ -11,7 +11,15 @@ const BUBBLE_COLORS = ['#7fdcff', '#a6e8ff', '#8fd0ff', '#b9f0ff', '#9ad8ff'].ma
 /** 구멍 안 금색 풍선(몸으로 채우면 점수) */
 const TARGET_COLORS = ['#ffd23f', '#ffc61a', '#ffdf6b', '#ffcc33'].map((c) => new THREE.Color(c));
 
+const particleMats = new Map<string, THREE.MeshBasicMaterial>();
+const particleMat = (color: string) => {
+  let m = particleMats.get(color);
+  if (!m) particleMats.set(color, (m = new THREE.MeshBasicMaterial({ color, depthWrite: false })));
+  return m;
+};
+
 interface Particle {
+  size: number;
   m: THREE.Mesh;
   vx: number;
   vy: number;
@@ -107,11 +115,12 @@ export class WallView {
       for (let k = 0; k < pieces; k++) {
         const a = Math.random() * Math.PI * 2;
         const sp = w.r * (6 + Math.random() * 8);
-        const m = new THREE.Mesh(circle, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, depthWrite: false }));
+        const m = new THREE.Mesh(circle, particleMat(color));
+        const size = w.r * (0.25 + Math.random() * 0.2);
         m.position.set(b.x, b.y, 0.01);
-        m.scale.setScalar(w.r * (0.25 + Math.random() * 0.2));
+        m.scale.setScalar(size);
         this.root.add(m);
-        this.particles.push({ m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.4 + Math.random() * 0.3 });
+        this.particles.push({ m, size, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.4 + Math.random() * 0.3 });
       }
     }
     this.fill.instanceMatrix.needsUpdate = true;
@@ -123,20 +132,16 @@ export class WallView {
       p.life += dt;
       p.m.position.x += p.vx * dt;
       p.m.position.y += p.vy * dt;
-      (p.m.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1 - p.life / p.max);
+      p.m.scale.setScalar(p.size * Math.max(0, 1 - p.life / p.max));
       if (p.life >= p.max) {
         this.root.remove(p.m);
-        (p.m.material as THREE.Material).dispose();
         this.particles.splice(this.particles.indexOf(p), 1);
       }
     }
   }
 
   clear(): void {
-    for (const p of this.particles) {
-      this.root.remove(p.m);
-      (p.m.material as THREE.Material).dispose();
-    }
+    for (const p of this.particles) this.root.remove(p.m);
     this.particles = [];
     this.root.visible = false;
     this.wall = null;

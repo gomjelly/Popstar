@@ -28,6 +28,8 @@ export interface TestConfig {
   seedPlayers: number;
   /** 풍선 게임에서 봇 손을 함께 쓴다(검증용) */
   botHands: boolean;
+  /** 봇 손만 쓴다(영상 속 손은 판정에서 뺌) */
+  botOnly: boolean;
   /** 벽 게임 자세를 이 목록으로 고정(쉼표로 구분, 검증용) */
   wallPoses: string | null;
   /** 거울 반전 강제('0' | '1'), 없으면 설정값 */
