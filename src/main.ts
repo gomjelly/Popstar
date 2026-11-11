@@ -7,6 +7,7 @@ import { addPlayer, listPlayers } from './data/db';
 import { savedCameraId, listCameras } from './pose/camera';
 import { AddPlayerScreen, CalibScreen, GamesScreen, HallScreen, MainScreen, PlayScreen, SelectScreen } from './ui/screens';
 import { SettingsScreen } from './ui/settings';
+import { BalloonScreen } from './ui/balloonScreen';
 
 async function boot(): Promise<void> {
   await loadConfig();
@@ -22,10 +23,20 @@ async function boot(): Promise<void> {
   app.register(new HallScreen(app));
   app.register(new CalibScreen(app));
   app.register(new PlayScreen(app));
+  app.register(new BalloonScreen(app));
   app.register(settings);
 
   $('backBtn').addEventListener('click', () => app.back());
   $('gearBtn').addEventListener('click', () => void app.go('settings'));
+  // 일시정지 창(모든 게임 화면 공통)
+  $('resumeBtn').addEventListener('click', () => {
+    app.setPaused(false);
+    app.sound.play('select');
+  });
+  $('quitBtn').addEventListener('click', () => {
+    app.setPaused(false);
+    void app.go('main', undefined, { back: true });
+  });
   setupKeyboard(app);
 
   // 매 프레임
@@ -64,6 +75,7 @@ async function boot(): Promise<void> {
   await modelReady;
   await settings.refreshCameraList();
 
+  if (test?.botHands) app.testBot = true;
   if (api && test) await setupTestHooks(app, settings, select, test.captureTitle, test.logMetrics, test.startRoute);
 }
 
@@ -195,6 +207,7 @@ async function setupTestHooks(
           slots,
           cursors,
           app.paused ? 'PAUSED' : '',
+          app.current?.debug?.() ?? '',
           sounds.length ? `sfx=${sounds.splice(0).join(',')}` : '',
           app.events.length ? `events=[${app.events.splice(0).join('; ')}]` : '',
         ]
@@ -222,7 +235,7 @@ async function setupTestHooks(
     const [route, arg] = startRoute.split(':');
     const game = (GAMES.some((g) => g.id === arg) ? arg : 'balloon-coop') as GameId;
     if (route === 'select') await app.go('select', game);
-    else if (route === 'calib' || route === 'play') {
+    else if (route === 'calib' || route === 'play' || route === 'balloon') {
       await app.go('games');
       await app.go('select', game);
       select.fillGuests();

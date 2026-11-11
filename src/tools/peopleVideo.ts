@@ -9,7 +9,9 @@ import * as THREE from 'three';
 
 const params = new URLSearchParams(location.search);
 const PEOPLE = Number(params.get('people') ?? 2);
-export const DURATION = 50;
+/** basic = 자리 바꾸기·나갔다 오기 대본, balloon = 양팔 펴기 보정 후 여기저기 손 뻗기 */
+const SCRIPT = params.get('script') ?? 'basic';
+export const DURATION = SCRIPT === 'balloon' ? 40 : 50;
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const info = document.getElementById('info') as HTMLDivElement;
@@ -317,6 +319,44 @@ function childPose(t: number): BodyPose {
   return p;
 }
 
+// ---------- 풍선 게임 대본 ----------
+// 0~1.5초 차렷 → 1.5~2.5초 양팔을 옆으로 → 7초까지 유지(보정) → 손을 위·옆·앞으로 뻗으며 조금씩 옆걸음 → 38~40초 차렷
+
+function reachPose(t: number, base: BodyPose, seed: number): BodyPose {
+  const p = base;
+  const up = smooth(1.5, 2.5, t) * (1 - smooth(38, 39.5, t));
+  const play = smooth(7, 8, t) * (1 - smooth(37, 38, t));
+  const wave = (f: number, ph: number) => Math.sin(t * f + ph + seed);
+  // 보정 자세(양팔 옆으로)
+  let abdL = lerp(12, 90, up);
+  let abdR = lerp(12, 90, up);
+  // 놀이: 팔을 위아래·앞뒤로 크게
+  abdL = lerp(abdL, 95 + 65 * wave(1.3, 0), play);
+  abdR = lerp(abdR, 95 + 65 * wave(1.1, 2), play);
+  p.armL = { abd: abdL, flex: 25 * play * (0.5 + 0.5 * wave(0.7, 1)), bend: 10 + 25 * play * (0.5 + 0.5 * wave(1.7, 0)) };
+  p.armR = { abd: abdR, flex: 25 * play * (0.5 + 0.5 * wave(0.9, 3)), bend: 10 + 25 * play * (0.5 + 0.5 * wave(1.5, 1)) };
+  // 옆걸음
+  const step = 0.3 * play * Math.sin(t * 0.45 + seed);
+  p.x += step;
+  const moving = Math.abs(Math.cos(t * 0.45 + seed)) * play > 0.3 ? 0.6 : 0;
+  if (moving) {
+    const wk = walk(t, moving, seed);
+    p.legL = wk.l;
+    p.legR = wk.r;
+  }
+  return p;
+}
+
+function adultBalloon(t: number): BodyPose {
+  const base: BodyPose = { x: PEOPLE > 1 ? 0.9 : 0, z: -3.6, bob: 0, armL: rest(), armR: rest(), legL: legRest(), legR: legRest(), headYaw: 0 };
+  return reachPose(t, base, 0);
+}
+
+function childBalloon(t: number): BodyPose {
+  const base: BodyPose = { x: -0.9, z: -2.9, bob: 0, armL: rest(), armR: rest(), legL: legRest(), legR: legRest(), headYaw: 0 };
+  return reachPose(t, base, 1.7);
+}
+
 // ---------- 화면 ----------
 function resize(): void {
   const w = canvas.clientWidth;
@@ -331,8 +371,8 @@ resize();
 let t0 = performance.now();
 function frame(): void {
   const t = ((performance.now() - t0) / 1000) % DURATION;
-  adult.pose(adultPose(t));
-  child?.pose(childPose(t));
+  adult.pose(SCRIPT === 'balloon' ? adultBalloon(t) : adultPose(t));
+  child?.pose(SCRIPT === 'balloon' ? childBalloon(t) : childPose(t));
   renderer.render(scene, camera);
   info.textContent = `${PEOPLE}명 · ${t.toFixed(1)}s / ${DURATION}s`;
   requestAnimationFrame(frame);

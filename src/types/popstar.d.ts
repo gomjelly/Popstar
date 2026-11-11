@@ -26,6 +26,8 @@ export interface TestConfig {
   startRoute: string | null;
   /** 시험용 플레이어 수 */
   seedPlayers: number;
+  /** 풍선 게임에서 봇 손을 함께 쓴다(검증용) */
+  botHands: boolean;
 }
 
 export interface PopstarBridge {

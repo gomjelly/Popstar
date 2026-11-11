@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "make:video": "npm run build && electron scripts/make-people-video.cjs",
     "setup:assets": "node scripts/setup-assets.mjs",
-    "postinstall": "node scripts/setup-assets.mjs"
+    "postinstall": "node scripts/setup-assets.mjs",
+    "test": "node --experimental-strip-types --no-warnings --test \"src/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/three": "^0.187.0",

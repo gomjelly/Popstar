@@ -16,7 +16,7 @@ import { HandCursor, HoverSelector, describe, type CursorPoint } from './ui/hand
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'settings';
+export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'balloon' | 'settings';
 
 /** 화면마다 아바타를 어떻게 그릴지 */
 export type AvatarMode = 'menu' | 'calib' | 'game' | 'none';
@@ -29,11 +29,15 @@ export interface Screen {
   readonly forcePreview?: boolean;
   /** 뒤로 가기 대상(없으면 뒤로 버튼을 숨긴다) */
   readonly backTo?: RouteName | null;
+  /** 게임 중처럼 손을 계속 움직이는 동안에는 손 커서를 끈다(일시정지 창에서는 다시 켜짐) */
+  readonly cursorsOff?: boolean;
   enter(arg?: string): void | Promise<void>;
   leave?(): void;
   update?(now: number): void;
   /** 키보드 처리. true를 돌려주면 기본 처리(Esc=뒤로 등)를 하지 않는다 */
   onKey?(e: KeyboardEvent): boolean;
+  /** 검증 로그용 한 줄 상태 */
+  debug?(): string;
 }
 
 /** 이번 판에 참가하는 사람(등록 플레이어 또는 손님) */
@@ -90,6 +94,8 @@ export class App {
   /** 이번 프레임에 그린 아바타 정보(슬롯 순서) */
   avatarInfo: AvatarInfo[] = [];
   paused = false;
+  /** 검증용(--bot-hands): 풍선 게임에서 봇 손을 함께 쓴다 */
+  testBot = false;
 
   // 측정
   readonly camRate = new Rate();
@@ -271,6 +277,9 @@ export class App {
     }
 
     this.current?.update?.(now);
+    // 화면 상태에 따라 뒤로 버튼이 바뀔 수 있다(풍선 게임: 보정 중에만 뒤로)
+    const noBack = !this.current?.backTo;
+    if ($('backBtn').hidden !== noBack) $('backBtn').hidden = noBack;
     this.drawAvatars();
     this.updateCursors(now);
     this.drawPreview();
@@ -301,7 +310,7 @@ export class App {
       const m = measure(s.pts, c.minVisibility);
       const h = mode === 'calib' ? c.avatarScreenHeight : c.menuAvatarScreenHeight;
       tf.follow(m, this.videoAspect, this.avatars.aspect, h, FLOOR_Y);
-      const color = this.current?.name === 'calib' && this.session ? (this.session.participants[i]?.color ?? SLOT_COLORS[i]) : SLOT_COLORS[i];
+      const color = mode === 'calib' && this.session ? (this.session.participants[i]?.color ?? SLOT_COLORS[i]) : SLOT_COLORS[i];
       list[i] = { pts: s.pts, transform: tf, color, refHeightCam: null };
     });
     for (const [i, tf] of this.liveTransforms.entries()) if (!this.tracker.slots[i].present) tf.reset();
@@ -348,7 +357,7 @@ export class App {
     const overlayOpen = !$('pauseOverlay').hidden;
     const scope = overlayOpen ? $('pauseOverlay') : (this.current?.el ?? null);
     const pts: (CursorPoint | null)[] = this.tracker.slots.map((s, i) => {
-      if (!s.present || !s.pts) return this.cursors[i].update(null);
+      if (!s.present || !s.pts || (this.current?.cursorsOff && !overlayOpen)) return this.cursors[i].update(null);
       // 놀이터(게임 중)에서는 멈춤 버튼·일시정지 창에만 커서를 쓴다.
       return this.cursors[i].update(s.pts);
     });

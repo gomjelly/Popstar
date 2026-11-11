@@ -54,6 +54,18 @@ export class NormTransform {
     this.to = { x: lerp(this.to.x, tx), y: floorY };
   }
 
+  /** 배율과 기준점을 직접 정하고 고정한다(풍선 게임 플레이 영역 등) */
+  set(scale: number, from: Vec2, to: Vec2): void {
+    this.scale = scale;
+    this.from = { ...from };
+    this.to = { ...to };
+    this.frozen = true;
+  }
+
+  copyFrom(o: NormTransform): void {
+    this.set(o.scale, o.from, o.to);
+  }
+
   reset(): void {
     this.scale = 1;
     this.from = { x: 0, y: 0 };

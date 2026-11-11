@@ -1,3 +1,5 @@
+import { DEFAULT_BALLOON, type BalloonParams } from './game/balloon/logic';
+
 // public/config/game.config.json 을 읽는다(SRS 6장). 값을 바꾸고 새로고침하면 반영된다.
 // 1단계(공통 기반)는 common 항목만 쓰고, wall/balloon 은 그대로 보관해 다음 단계에서 쓴다.
 
@@ -36,9 +38,9 @@ export interface CommonConfig {
 
 export interface GameConfig {
   common: CommonConfig;
-  /** 2단계 이후에 쓰는 게임별 값(그대로 보관) */
+  /** 3단계 이후에 쓰는 벽 게임 값(그대로 보관) */
   wall: Record<string, unknown>;
-  balloon: Record<string, unknown>;
+  balloon: BalloonParams;
 }
 
 const DEFAULTS: GameConfig = {
@@ -59,7 +61,7 @@ const DEFAULTS: GameConfig = {
     photoCountdownSec: 3,
   },
   wall: {},
-  balloon: {},
+  balloon: DEFAULT_BALLOON,
 };
 
 export let config: GameConfig = structuredClone(DEFAULTS);
@@ -77,13 +79,29 @@ export async function loadConfig(): Promise<GameConfig> {
         cursorZone: { ...DEFAULTS.common.cursorZone, ...json.common?.cursorZone },
       },
       wall: json.wall ?? {},
-      balloon: json.balloon ?? {},
+      balloon: mergeBalloon(json.balloon),
     };
   } catch (err) {
     console.warn('설정 파일을 읽지 못해 기본값을 씁니다.', err);
     config = structuredClone(DEFAULTS);
   }
   return config;
+}
+
+/** 풍선 설정은 한 단계 안쪽 객체까지 기본값과 합친다(일부만 적어도 되게) */
+function mergeBalloon(b: Partial<BalloonParams> | undefined): BalloonParams {
+  const d = structuredClone(DEFAULT_BALLOON);
+  if (!b) return d;
+  return {
+    ...d,
+    ...b,
+    start: { ...d.start, ...b.start },
+    perStage: { ...d.perStage, ...b.perStage },
+    limits: { ...d.limits, ...b.limits },
+    specialRatio: { ...d.specialRatio, ...b.specialRatio },
+    points: { ...d.points, ...b.points },
+    combo: b.combo ?? d.combo,
+  };
 }
 
 // ---------- 게임 종류 ----------

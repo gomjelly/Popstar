@@ -38,6 +38,13 @@
     "limits": { "minSpawnIntervalMs": 350, "maxFallSpeed": 0.7, "maxBombRatio": 0.25, "minBalloonSize": 0.06 },
     "specialRatio": { "gold": 0.05, "heart": 0.015, "clock": 0.02, "star": 0.02, "bubble": 0.08 },
     "points": { "normal": 10, "gold": 50, "bubble": 5, "giant": 40, "clearPerLife": 100 },
-    "combo": [ { "at": 5, "multiplier": 1.5 }, { "at": 10, "multiplier": 2.0 } ]
+    "combo": [ { "at": 5, "multiplier": 1.5 }, { "at": 10, "multiplier": 2.0 } ],
+    "handRadius": 0.06,
+    "minGapArms": 1.0,
+    "windFromStage": 4,
+    "windSpeed": 0.12,
+    "slowSec": 3,
+    "slowFactor": 0.4,
+    "skyRatio": 0.4
   }
 }

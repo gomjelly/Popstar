@@ -17,6 +17,7 @@ const isDev = process.argv.includes('--dev');
 //   --start=<화면>             시작 화면: main | games | hall | add-player | settings | select:<게임> | calib:<게임> | play:<게임>
 //                             calib/play 는 손님으로 자동 채운다. 게임: wall | balloon-1p | balloon-coop | balloon-versus
 //   --seed-players=<N>        시험용 플레이어 N명을 만든다(이미 있으면 건너뜀)
+//   --bot-hands               풍선 게임에서 가장 가까운 풍선으로 움직이는 봇 손을 함께 쓴다(3스테이지 검증용)
 //   --quit-after=<초>          그 시간이 지나면 앱을 끝낸다(자동 검증용)
 //   --profile-dir=<폴더>       기록·설정을 이 폴더에 따로 저장한다(테스트 기록이 실제 기록과 섞이지 않게)
 //   --window-size=1280x720    창 내용 크기
@@ -30,6 +31,7 @@ const testCaptureTitle = argValue('test-capture');
 const logMetrics = process.argv.includes('--log-metrics');
 const startRoute = argValue('start');
 const seedPlayers = Number(argValue('seed-players')) || 0;
+const botHands = process.argv.includes('--bot-hands');
 const quitAfter = Number(argValue('quit-after')) || 0;
 const profileDir = argValue('profile-dir');
 const testVideo = argValue('test-video');
@@ -228,6 +230,7 @@ ipcMain.handle('test:config', () => ({
   logMetrics,
   startRoute,
   seedPlayers,
+  botHands,
 }));
 ipcMain.handle('test:video', () => {
   if (!testVideo) return null;

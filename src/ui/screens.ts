@@ -6,6 +6,7 @@ import { MAX_NAME, addPlayer, autoColor, checkName, colorHex, listPlayers, nameL
 import { frameProblem, measure, type FrameProblem } from '../pose/body';
 import { LM, dist, mid, type Pt } from '../pose/landmarks';
 import { calibTargetX } from '../pose/transform';
+import { AutoPause } from './autoPause';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
   const e = document.createElement(tag);
@@ -161,7 +162,8 @@ export class SelectScreen implements Screen {
     if (this.picks.length < this.need) return;
     this.app.startSession(this.game, this.picks.map((p) => p.player));
     this.app.sound.play('go');
-    void this.app.go('calib');
+    // 풍선 게임은 자기 보정(양팔 펴기)을 하고, 벽 게임은 3단계 전까지 공통 보정 → 아바타 확인
+    void this.app.go(this.game.startsWith('balloon') ? 'balloon' : 'calib');
   }
 }
 
@@ -617,70 +619,44 @@ export class PlayScreen implements Screen {
   readonly el = $('scr-play');
   readonly avatarMode = 'game' as const;
   readonly backTo = null;
-  private autoPaused = false;
-  private backSince = 0;
+  private autoPause: AutoPause;
 
   constructor(private app: App) {
+    this.autoPause = new AutoPause(app);
     $('playPause').addEventListener('click', () => this.app.setPaused(true, '스페이스나 ▶ 버튼으로 계속해요'));
-    $('resumeBtn').addEventListener('click', () => {
-      this.autoPaused = false;
-      this.app.setPaused(false);
-      this.app.sound.play('select');
-    });
-    $('quitBtn').addEventListener('click', () => {
-      this.app.setPaused(false);
-      void this.app.go('main', undefined, { back: true });
-    });
   }
 
   enter(): void {
     const s = this.app.session;
     const info = s ? gameInfo(s.game) : null;
     $('playTitle').textContent = info ? `${info.icon} ${info.name} ${info.sub} · 아바타 확인` : '아바타 확인';
-    this.autoPaused = false;
-    this.backSince = 0;
+    this.autoPause.reset();
   }
 
   update(now: number): void {
     const s = this.app.session;
-    if (!s) return;
-    const t = this.app.tracker;
-    const lost = s.participants.some((_, i) => t.lostMs(t.slots[i], now) > config.common.lostPlayerPauseMs);
-    if (lost && !this.app.paused) {
-      this.autoPaused = true;
-      this.app.setPaused(true, '카메라 앞으로 돌아와요');
-      $('pauseTitle').textContent = '어디 갔어요?';
-    }
-    // 자동으로 멈춘 경우: 모두 돌아와 1초 지나면 이어서 한다.
-    if (this.autoPaused && this.app.paused) {
-      const allBack = s.participants.every((_, i) => t.slots[i].present);
-      if (!allBack) this.backSince = 0;
-      else if (!this.backSince) this.backSince = now;
-      else if (now - this.backSince > 1000) {
-        this.autoPaused = false;
-        this.backSince = 0;
-        this.app.setPaused(false);
-        this.app.sound.play('join');
-        this.app.log('auto-resumed');
-      }
-    }
-    if (!this.app.paused) $('pauseTitle').textContent = '잠깐 멈췄어요';
+    if (s) this.autoPause.update(now, s.participants.length);
   }
 
   onKey(e: KeyboardEvent): boolean {
-    if (e.key === ' ') {
-      e.preventDefault();
-      if (this.app.paused) $('resumeBtn').click();
-      else $('playPause').click();
-      return true;
-    }
-    if (e.key === 'Escape') {
-      if (this.app.paused) $('quitBtn').click();
-      else $('playPause').click();
-      return true;
-    }
-    return false;
+    return pauseKeys(this.app, e, () => $('playPause').click());
   }
+}
+
+/** 게임 화면 공통 키: 스페이스 = 멈춤/계속, Esc = 멈춤(멈춘 상태면 처음으로) */
+export function pauseKeys(app: App, e: KeyboardEvent, pause: () => void): boolean {
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (app.paused) $('resumeBtn').click();
+    else pause();
+    return true;
+  }
+  if (e.key === 'Escape') {
+    if (app.paused) $('quitBtn').click();
+    else pause();
+    return true;
+  }
+  return false;
 }
 
 export function toast(text: string, ms = 2200): void {

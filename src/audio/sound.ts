@@ -22,8 +22,11 @@ function write(key: string, value: string): void {
   }
 }
 
-export type SfxName = 'hover' | 'select' | 'back' | 'beep' | 'go' | 'shutter' | 'cheer' | 'error' | 'pause' | 'join';
-export type MusicName = 'menu';
+export type SfxName =
+  | 'hover' | 'select' | 'back' | 'beep' | 'go' | 'shutter' | 'cheer' | 'error' | 'pause' | 'join'
+  // 풍선 게임
+  | 'pop' | 'bomb' | 'gold' | 'heart' | 'clock' | 'star' | 'bubble' | 'miss' | 'lifeLost' | 'stageClear' | 'gameOver';
+export type MusicName = 'menu' | 'balloon';
 
 interface AudioManifest {
   music?: Partial<Record<MusicName, string>>;
@@ -37,7 +40,7 @@ export class Sound {
   private musicGain!: GainNode;
   private manifest: AudioManifest = {};
   private buffers = new Map<string, AudioBuffer>();
-  private musicName: MusicName | null = null;
+  private musicKey: string | null = null;
   private musicTimer = 0;
   private musicEl: HTMLAudioElement | null = null;
   private _music: number;
@@ -214,27 +217,70 @@ export class Sound {
       case 'join':
         this.tone(523, t, 0.12, 'sine', 0.2, 1047);
         break;
+      case 'pop': {
+        // 높이를 조금씩 바꿔 연달아 터져도 덜 지루하게
+        const f = 520 + Math.random() * 260;
+        this.noiseBurst(t, 0.06, 0.55, 1200);
+        this.tone(f, t, 0.09, 'triangle', 0.22, f * 2.2);
+        break;
+      }
+      case 'bubble':
+        this.tone(900, t, 0.08, 'sine', 0.2, 1700);
+        break;
+      case 'gold':
+        [1047, 1319, 1568, 2093].forEach((f, i) => this.tone(f, t + i * 0.05, 0.18, 'triangle', 0.18));
+        break;
+      case 'heart':
+        this.tone(659, t, 0.15, 'sine', 0.25);
+        this.tone(988, t + 0.12, 0.3, 'sine', 0.25);
+        break;
+      case 'clock':
+        this.tone(1200, t, 0.5, 'sine', 0.2, 300);
+        break;
+      case 'star':
+        [784, 988, 1175, 1568, 1976].forEach((f, i) => this.tone(f, t + i * 0.04, 0.25, 'square', 0.08));
+        this.noiseBurst(t, 0.3, 0.3, 3000);
+        break;
+      case 'bomb':
+        this.noiseBurst(t, 0.5, 0.9, 80);
+        this.tone(110, t, 0.5, 'sawtooth', 0.25, 40);
+        break;
+      case 'miss':
+        this.tone(330, t, 0.18, 'triangle', 0.15, 220);
+        break;
+      case 'lifeLost':
+        this.tone(440, t, 0.18, 'square', 0.12, 330);
+        this.tone(330, t + 0.18, 0.3, 'square', 0.12, 220);
+        break;
+      case 'stageClear':
+        [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, t + i * 0.1, 0.25, 'triangle', 0.22));
+        break;
+      case 'gameOver':
+        [523, 466, 415, 349].forEach((f, i) => this.tone(f, t + i * 0.22, 0.35, 'triangle', 0.22));
+        break;
     }
   }
 
   // ---------- 배경음악 ----------
 
-  /** 같은 곡이면 그대로 둔다. null이면 끈다. */
-  music(name: MusicName | null): void {
-    if (this.musicName === name) return;
+  /** 같은 곡·같은 빠르기면 그대로 둔다. null이면 끈다. tempo는 1 = 원래 빠르기(풍선 게임은 스테이지마다 올린다) */
+  music(name: MusicName | null, tempo = 1): void {
+    const key = name ? `${name}@${tempo.toFixed(2)}` : null;
+    if (this.musicKey === key) return;
     this.stopMusic();
-    this.musicName = name;
+    this.musicKey = key;
     if (!name) return;
     const file = this.manifest.music?.[name];
     if (file) {
       const el = new Audio(new URL(`audio/${file}`, document.baseURI).href);
       el.loop = true;
+      el.playbackRate = tempo;
       el.volume = this._muted ? 0 : this._music;
-      el.play().catch(() => this.startSynthMusic());
+      el.play().catch(() => this.startSynthMusic(name, tempo));
       this.musicEl = el;
       return;
     }
-    this.startSynthMusic();
+    this.startSynthMusic(name, tempo);
   }
 
   private stopMusic(): void {
@@ -245,16 +291,16 @@ export class Sound {
   }
 
   /** 밝은 5음 음계의 짧은 동요풍 반복(4마디). 박자마다 미리 예약한다. */
-  private startSynthMusic(): void {
+  private startSynthMusic(name: MusicName, tempo: number): void {
     const ctx = this.ensure();
-    const bpm = 112;
+    const bpm = (name === 'balloon' ? 132 : 112) * tempo;
     const beat = 60 / bpm / 2; // 8분음표
     // C 장조 5음 음계 멜로디(0 = 쉼)
-    const melody = [
-      67, 69, 72, 0, 69, 67, 64, 0, 67, 69, 72, 74, 76, 0, 74, 72,
-      69, 72, 74, 0, 72, 69, 67, 0, 64, 67, 69, 67, 64, 62, 60, 0,
-    ];
-    const bass = [48, 48, 45, 45, 53, 53, 55, 55];
+    const melody =
+      name === 'balloon'
+        ? [72, 0, 76, 79, 76, 0, 72, 74, 76, 74, 72, 0, 69, 72, 74, 0, 72, 0, 76, 79, 81, 79, 76, 0, 74, 76, 74, 72, 69, 67, 72, 0]
+        : [67, 69, 72, 0, 69, 67, 64, 0, 67, 69, 72, 74, 76, 0, 74, 72, 69, 72, 74, 0, 72, 69, 67, 0, 64, 67, 69, 67, 64, 62, 60, 0];
+    const bass = name === 'balloon' ? [48, 48, 53, 53, 45, 45, 55, 55] : [48, 48, 45, 45, 53, 53, 55, 55];
     const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
     let step = 0;
     let next = ctx.currentTime + 0.1;

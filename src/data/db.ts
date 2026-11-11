@@ -138,3 +138,29 @@ export function autoColor(players: PlayerRecord[]): string {
 export function colorHex(id: string): string {
   return PLAYER_COLORS.find((c) => c.id === id)?.hex ?? PLAYER_COLORS[0].hex;
 }
+
+// ---------- 판 기록(plays) ----------
+
+export interface PlayRecord {
+  id: string;
+  game: string;
+  startedAt: string;
+  endedAt: string;
+  /** 총점(대결은 합계) */
+  score: number;
+  /** 대결: 플레이어별 점수 */
+  scores: number[];
+  playerIds: (string | null)[];
+  playerNames: string[];
+  /** 도달한 스테이지 */
+  stage: number;
+  stageScores: number[];
+  maxCombo: number;
+}
+
+export async function savePlay(rec: PlayRecord): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction('plays', 'readwrite');
+  tx.objectStore('plays').put(rec);
+  await done(tx);
+}

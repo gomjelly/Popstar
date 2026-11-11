@@ -105,6 +105,49 @@
         <p class="play-note">게임은 다음 단계에서 들어가요 · 자리를 바꿔도 색이 그대로예요</p>
       </section>
 
+      <!-- ===== 풍선 터뜨리기 (SRS 5장) ===== -->
+      <section class="screen" id="scr-balloon" hidden>
+        <!-- 플레이 영역 보정 -->
+        <div id="bCalib" class="b-calib">
+          <h2 class="title" id="bCalibTitle">양팔을 옆으로 쭉 펴세요</h2>
+          <div id="bCalibGuide" class="guide big-guide">카메라 앞에 서요</div>
+          <div class="hold-gauge"><div id="bCalibBar"></div></div>
+          <div id="bSilhouette" class="silhouette"></div>
+        </div>
+        <!-- 게임 HUD -->
+        <div id="bHud" class="bhud" hidden>
+          <div class="bh-left">
+            <div id="bhLives" class="lives"></div>
+            <div id="bhMiss" class="miss"></div>
+          </div>
+          <div class="bh-center">
+            <div id="bhStage" class="stage"></div>
+            <div id="bhTime" class="time"></div>
+          </div>
+          <div class="bh-right">
+            <div id="bhScore" class="score"></div>
+          </div>
+        </div>
+        <button class="small b-pause" id="bPause" hidden>⏸ 멈춤 (Space)</button>
+        <div id="bhCombo" class="combo" hidden></div>
+        <div id="bhSlow" class="slow" hidden>⏰ 느리게!</div>
+        <div id="bBanner" class="banner" hidden></div>
+        <div id="fx" class="fx"></div>
+        <!-- 결과 -->
+        <div id="bResult" class="overlay result" hidden>
+          <div class="overlay-card">
+            <h2 id="brTitle">게임 끝!</h2>
+            <div id="brScore" class="br-score"></div>
+            <div id="brInfo" class="br-info"></div>
+            <div id="brStages" class="br-stages"></div>
+            <div class="row center">
+              <button class="hov mid primary" id="brAgain" data-name="again">🔄 다시 하기</button>
+              <button class="hov mid" id="brHome" data-name="home">🏠 처음으로</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== 설정 ===== -->
       <section class="screen" id="scr-settings" hidden>
         <h2 class="title">⚙️ 설정</h2>
