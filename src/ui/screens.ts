@@ -487,6 +487,9 @@ function silhouetteSvg(n: number): string {
   return `<svg viewBox="-889 0 1778 600" preserveAspectRatio="xMidYMax meet">${xs.map(figure).join('')}</svg>`;
 }
 
+/** 보정 중 이 시간보다 짧게 생긴 문제(인식 깜빡임)는 게이지를 되돌리지 않는다 */
+const BAD_GRACE_MS = 400;
+
 const PROBLEM_TEXT: Record<FrameProblem, string> = {
   none: '',
   head: '한 걸음 뒤로 가요 (머리가 잘려요)',
@@ -504,6 +507,9 @@ export class CalibScreen implements Screen {
   private holdStart = 0;
   private samples: { height: number; foot: { x: number; y: number } }[][] = [];
   private lastAnchor: ({ x: number; y: number } | null)[] = [];
+  /** 문제가 보이기 시작한 때(짧은 깜빡임은 봐준다) */
+  private badSince = 0;
+  private lastError = 0;
 
   constructor(private app: App) {}
 
@@ -537,8 +543,8 @@ export class CalibScreen implements Screen {
     }
     // 크게 움직이면 처음부터
     if (!msg && this.holdStart) {
-      present.forEach((slot, i) => {
-        const a = this.lastAnchor[i];
+      present.forEach((slot) => {
+        const a = this.lastAnchor[slot.index];
         const m = measure(slot.pts!, c.minVisibility);
         if (a && dist(a, slot.anchor!) > m.torso * 0.25) msg = '가만히 서 있어요';
       });
@@ -546,12 +552,19 @@ export class CalibScreen implements Screen {
 
     const guide = $('calibGuide');
     if (msg) {
+      // 발목·머리 인식이 화면 끝에서 한두 프레임 깜빡이는 것은 무시한다(실제 웹캠에서 자주 생김).
+      if (!this.badSince) this.badSince = now;
+      if (this.holdStart && now - this.badSince < BAD_GRACE_MS) return;
       guide.textContent = msg;
-      if (this.holdStart) this.app.sound.play('error');
+      if (this.holdStart && now - this.holdStart > 500 && now - this.lastError > 1500) {
+        this.app.sound.play('error');
+        this.lastError = now;
+      }
       this.holdStart = 0;
       $('calibBar').style.width = '0%';
       return;
     }
+    this.badSince = 0;
     if (!this.holdStart) {
       // 자세를 잡기 시작할 때 왼쪽 사람 = P1, 오른쪽 = P2로 번호를 붙인다(FR-COM-04).
       this.app.tracker.assignLeftToRight();
@@ -564,11 +577,15 @@ export class CalibScreen implements Screen {
     this.app.tracker.slots.forEach((slot, i) => {
       if (i >= need || !slot.pts) return;
       const m = measure(slot.pts, c.minVisibility);
-      this.samples[i].push({ height: m.height, foot: m.foot });
+      // 발목까지 실제로 잰 프레임만 평균에 넣는다(몸통으로 추정한 키는 빼기)
+      if (m.fullHeight) this.samples[i].push({ height: m.height, foot: m.foot });
     });
     const prog = Math.min(1, (now - this.holdStart) / c.calibHoldMs);
     $('calibBar').style.width = `${(prog * 100).toFixed(0)}%`;
-    if (prog >= 1) this.finish();
+    if (prog >= 1) {
+      if (this.samples.slice(0, need).every((xs) => xs.length >= 5)) this.finish();
+      else this.holdStart = 0; // 발목까지 잰 프레임이 모자라면 다시
+    }
   }
 
   /** 프레임 평균으로 키와 발 위치를 정하고 정규화 변환을 고정한다(FR-COM-10) */

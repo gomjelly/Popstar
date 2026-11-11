@@ -97,6 +97,8 @@ export class App {
   readonly renderRate = new Rate();
   inferMs = 0;
   private lastVideoTime = -1;
+  private newVideoFrame = false;
+  private readonly frameCallbackOk = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
   private detections = 0;
   /** 검증 로그용 이벤트 모음 */
   events: string[] = [];
@@ -129,6 +131,21 @@ export class App {
       this.tagEls.push(tag);
     }
     window.addEventListener('resize', () => this.avatars.resize());
+    if (this.frameCallbackOk) {
+      let pending = false;
+      const watch = () => {
+        if (pending) return;
+        pending = true;
+        this.video.requestVideoFrameCallback(() => {
+          pending = false;
+          this.newVideoFrame = true;
+          watch();
+        });
+      };
+      watch();
+      // 입력을 바꾸면(카메라 ↔ 동영상) 다시 건다
+      this.video.addEventListener('playing', watch);
+    }
   }
 
   log(e: string): void {
@@ -229,7 +246,11 @@ export class App {
   frame(now: number): void {
     this.renderRate.tick(now);
     const v = this.video;
-    if (v.readyState >= 2 && v.currentTime !== this.lastVideoTime) {
+    // 카메라 스트림은 currentTime이 화면 갱신마다 늘어나므로, 새 프레임 알림(requestVideoFrameCallback)으로
+    // 실제로 새 영상 프레임이 왔을 때만 인식한다(같은 프레임을 여러 번 인식하지 않게).
+    const fresh = this.frameCallbackOk ? this.newVideoFrame : v.currentTime !== this.lastVideoTime;
+    if (v.readyState >= 2 && fresh) {
+      this.newVideoFrame = false;
       this.lastVideoTime = v.currentTime;
       this.camRate.tick(now);
       if (this.pose.ready) {
