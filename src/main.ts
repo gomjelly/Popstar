@@ -9,6 +9,7 @@ import { AddPlayerScreen, CalibScreen, GamesScreen, HallScreen, MainScreen, Play
 import { SettingsScreen } from './ui/settings';
 import { BalloonScreen } from './ui/balloonScreen';
 import { WallScreen } from './ui/wallScreen';
+import { PlayersScreen } from './ui/playersScreen';
 
 /** 검증용: 시험 플레이어를 만들었으면 손님 대신 그 플레이어로 시작한다 */
 let seeded = false;
@@ -28,12 +29,15 @@ async function boot(): Promise<void> {
   app.register(new CalibScreen(app));
   app.register(new PlayScreen(app));
   app.register(new BalloonScreen(app));
+  app.register(new PlayersScreen(app));
   const wall = new WallScreen(app);
   app.register(wall);
   app.register(settings);
 
   $('backBtn').addEventListener('click', () => app.back());
   $('gearBtn').addEventListener('click', () => void app.go('settings'));
+  $('selectManage').addEventListener('click', () => void app.go('players'));
+  $('settingsPlayers').addEventListener('click', () => void app.go('players'));
   $('camViewBtn').addEventListener('click', () => app.setPreview(!app.previewVisible));
   $('handBtn').addEventListener('click', () => app.setHandCursor(!app.handCursorOn));
   app.refreshTools();
@@ -96,6 +100,7 @@ async function boot(): Promise<void> {
     app.handCursorOn = test.hand === '1';
     app.refreshTools();
   }
+  if (api && test?.record) void recordWindow(api, test.record);
   if (api && test) await setupTestHooks(app, settings, select, test.captureTitle, test.logMetrics, test.startRoute);
 }
 
@@ -226,6 +231,12 @@ async function setupTestHooks(
           `infer=${app.inferMs.toFixed(1)}ms`,
           `frame=${app.frameMs.toFixed(1)}ms`,
           app.detectGapMs ? `detectGap=${app.detectGapMs.toFixed(0)}ms` : '',
+          (() => {
+            const p = app.prof;
+            const s = `prof[detect=${p.detect.toFixed(0)} look=${p.look.toFixed(0)} update=${p.update.toFixed(0)} draw=${p.draw.toFixed(0)} ui=${p.ui.toFixed(0)}ms/s frames=${p.frames} maxGap=${p.maxGap.toFixed(0)}ms]`;
+            app.prof = { detect: 0, look: 0, update: 0, draw: 0, ui: 0, frames: 0, maxGap: 0 };
+            return s;
+          })(),
           `render=${app.renderRate.rate(now)}fps`,
           `people=${t.presentCount}`,
           `cands=[${app.lastCandidates}]`,
@@ -269,6 +280,26 @@ async function setupTestHooks(
     } else await app.go(route as RouteName, arg);
     api.sendMetrics(`start route: ${startRoute} (config hover=${config.common.hoverSelectMs}ms)`);
   }
+}
+
+/** README용: 앱 창 자신을 녹화해 파일로 저장한다(--record) */
+async function recordWindow(api: NonNullable<Window['popstar']>, opt: { delay: number; sec: number; mp4: boolean }): Promise<void> {
+  await new Promise((r) => setTimeout(r, opt.delay * 1000));
+  await api.selectCaptureSource('self');
+  const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false });
+  const types = opt.mp4 ? ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9'] : ['video/webm;codecs=vp9', 'video/webm'];
+  const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
+  const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
+  const chunks: Blob[] = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  const stopped = new Promise<void>((r) => (rec.onstop = () => r()));
+  rec.start(500);
+  api.sendMetrics(`record start ${mimeType}`);
+  await new Promise((r) => setTimeout(r, opt.sec * 1000));
+  rec.stop();
+  await stopped;
+  stream.getTracks().forEach((t) => t.stop());
+  await api.saveRecording(new Uint8Array(await new Blob(chunks).arrayBuffer()));
 }
 
 function hex(rgb: number[]): string {

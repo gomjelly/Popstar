@@ -11,17 +11,14 @@ const W = 192;
 const H = 108;
 
 export class AppearanceSampler {
-  private cv = document.createElement('canvas');
-  private g = this.cv.getContext('2d', { willReadFrequently: true })!;
+  // 화면(document)과 인식 작업 스레드(Worker, OffscreenCanvas) 양쪽에서 쓴다
+  private cv: HTMLCanvasElement | OffscreenCanvas =
+    typeof document !== 'undefined' ? Object.assign(document.createElement('canvas'), { width: W, height: H }) : new OffscreenCanvas(W, H);
+  private g = this.cv.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
   private data: Uint8ClampedArray | null = null;
 
-  constructor() {
-    this.cv.width = W;
-    this.cv.height = H;
-  }
-
   /** 이번 프레임 영상을 작게 줄여 읽어 둔다 */
-  capture(video: HTMLVideoElement): void {
+  capture(video: CanvasImageSource): void {
     this.g.drawImage(video, 0, 0, W, H);
     this.data = this.g.getImageData(0, 0, W, H).data;
   }

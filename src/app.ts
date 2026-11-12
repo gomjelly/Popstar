@@ -9,7 +9,7 @@ import { Camera, type SourceInfo } from './pose/camera';
 import { measure } from './pose/body';
 import { LM, toCameraSpace, type Pt } from './pose/landmarks';
 import { PlayerTracker, priorityOf } from './pose/playerTracker';
-import { PoseTracker, type ModelKind } from './pose/poseTracker';
+import { PoseTracker, type DetectResult, type ModelKind } from './pose/poseTracker';
 import { NormTransform } from './pose/transform';
 import { AvatarScene, type AvatarDraw, type AvatarInfo } from './render/avatarScene';
 import { HandCursor, HoverSelector, describe, type CursorPoint } from './ui/handCursor';
@@ -17,7 +17,7 @@ import type { BodyProfile } from './game/wall/geometry';
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'balloon' | 'wall' | 'settings';
+export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'balloon' | 'wall' | 'players' | 'settings';
 
 /** 화면마다 아바타를 어떻게 그릴지 */
 export type AvatarMode = 'menu' | 'calib' | 'game' | 'none';
@@ -115,6 +115,9 @@ export class App {
   frameMs = 0;
   /** 인식 사이 최소 간격(ms). 인식이 느린 컴퓨터에서는 늘려서 화면을 먼저 부드럽게 그린다 */
   detectGapMs = 0;
+  /** 단계별 처리 시간(ms, 1초 동안 합계) — 어디가 느린지 찾기용 */
+  prof = { detect: 0, look: 0, update: 0, draw: 0, ui: 0, frames: 0, maxGap: 0 };
+  private lastFrameAt = 0;
   private lastDetectAt = 0;
   /** 이번 프레임에 찾은 사람(후보) 수와 우선순위 — 검증 로그용 */
   lastCandidates = "";
@@ -153,6 +156,7 @@ export class App {
       this.tagEls.push(tag);
     }
     window.addEventListener('resize', () => this.avatars.resize());
+    this.pose.onResult = (r) => this.handlePoses(r, performance.now());
     if (this.frameCallbackOk) {
       let pending = false;
       const watch = () => {
@@ -271,46 +275,69 @@ export class App {
 
   frame(now: number): void {
     const t0 = performance.now();
+    if (this.lastFrameAt) this.prof.maxGap = Math.max(this.prof.maxGap, now - this.lastFrameAt);
+    this.lastFrameAt = now;
+    this.prof.frames++;
     this.renderRate.tick(now);
     const v = this.video;
-    // 인식이 오래 걸리면(느린 노트북) 매 카메라 프레임마다 인식하지 않고 간격을 둔다.
-    // 그동안에는 화면만 그려서 끊김을 줄인다(인식 18ms 넘으면 인식 시간의 1.8배 간격).
-    this.detectGapMs = this.inferMs > 18 ? this.inferMs * 1.8 : 0;
+    // 메인 스레드에서 인식할 때(작업 스레드를 못 쓸 때), 인식이 오래 걸리면 매 카메라 프레임마다 인식하지 않고 간격을 둔다.
+    // 그동안에는 화면만 그려서 끊김을 줄인다(인식 18ms 넘으면 인식 시간의 1.8배 간격). 작업 스레드에서는 필요 없다.
+    this.detectGapMs = !this.pose.threaded && this.inferMs > 18 ? this.inferMs * 1.8 : 0;
     // 카메라 스트림은 currentTime이 화면 갱신마다 늘어나므로, 새 프레임 알림(requestVideoFrameCallback)으로
     // 실제로 새 영상 프레임이 왔을 때만 인식한다(같은 프레임을 여러 번 인식하지 않게).
     const fresh = this.frameCallbackOk ? this.newVideoFrame : v.currentTime !== this.lastVideoTime;
-    if (v.readyState >= 2 && fresh && now - this.lastDetectAt >= this.detectGapMs) {
+    if (v.readyState >= 2 && fresh && now - this.lastDetectAt >= this.detectGapMs && !this.pose.busy) {
       this.lastDetectAt = now;
       this.newVideoFrame = false;
       this.lastVideoTime = v.currentTime;
       this.camRate.tick(now);
-      if (this.pose.ready) {
+      if (this.pose.threaded) {
+        // 작업 스레드로 보내고 결과는 나중에 handlePoses 로 받는다. 옷 색은 사람이 둘 이상 보일 때만 잰다.
+        this.pose.submit(v, this.lastPoseCount > 1 || this.tracker.limit > 1);
+      } else if (this.pose.ready) {
         const r = this.pose.detect(v);
-        this.inferMs = this.inferMs * 0.9 + r.inferenceMs * 0.1;
-        this.poseRate.tick(now);
-        this.detections++;
-        const cam = r.poses.map((p) => toCameraSpace(p, this.videoAspect, this.mirror));
-        this.lastCandidates = cam.map((p) => `${p[23].x.toFixed(2)}:${priorityOf(p, this.videoAspect).toFixed(2)}`).join(",");
-        let looks: ReturnType<AppearanceSampler['measure']>[] = [];
-        if (r.poses.length) {
+        const tl = performance.now();
+        if (r.poses.length > 1 || this.tracker.limit > 1) {
           this.looks.capture(v);
-          looks = r.poses.map((p) => this.looks.measure(p));
+          r.looks = r.poses.map((p) => this.looks.measure(p));
         }
-        const before = this.tracker.lastEvent;
-        this.tracker.update(cam, now, this.videoAspect, looks);
-        if (this.tracker.lastEvent !== before) this.log(this.tracker.lastEvent);
+        this.prof.look += performance.now() - tl;
+        this.handlePoses(r, now);
       }
     }
 
+    const t1 = performance.now();
+    this.prof.detect += t1 - t0;
     this.current?.update?.(now);
+    const t2 = performance.now();
+    this.prof.update += t2 - t1;
     // 화면 상태에 따라 뒤로 버튼이 바뀔 수 있다(풍선 게임: 보정 중에만 뒤로)
     this.refreshTools();
     const noBack = !this.current?.backTo;
     if ($('backBtn').hidden !== noBack) $('backBtn').hidden = noBack;
+    const t3 = performance.now();
     this.drawAvatars();
+    const t4 = performance.now();
+    this.prof.draw += t4 - t3;
     this.updateCursors(now);
     this.drawPreview();
-    this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;
+    const t5 = performance.now();
+    this.prof.ui += t5 - t4 + (t3 - t2);
+    this.frameMs = this.frameMs * 0.9 + (t5 - t0) * 0.1;
+  }
+
+  /** 인식 결과(관절·옷 색)로 번호를 이어 붙인다. 작업 스레드 결과도 여기로 온다 */
+  private lastPoseCount = 0;
+  handlePoses(r: DetectResult, now: number): void {
+    this.inferMs = this.inferMs * 0.9 + r.inferenceMs * 0.1;
+    this.poseRate.tick(now);
+    this.detections++;
+    this.lastPoseCount = r.poses.length;
+    const cam = r.poses.map((p) => toCameraSpace(p, this.videoAspect, this.mirror));
+    this.lastCandidates = cam.map((p) => `${p[23].x.toFixed(2)}:${priorityOf(p, this.videoAspect).toFixed(2)}`).join(',');
+    const before = this.tracker.lastEvent;
+    this.tracker.update(cam, now, this.videoAspect, r.looks);
+    if (this.tracker.lastEvent !== before) this.log(this.tracker.lastEvent);
   }
 
   /** 지금 화면 규칙에 맞는 아바타 그리기 */
