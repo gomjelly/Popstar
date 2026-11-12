@@ -360,9 +360,21 @@ export class BalloonScreen implements Screen {
           for (const b of e.popped) this.view.burst(b.x, b.y, b.r, balloonColor(b));
           if (e.points) this.float(0, (g.area.y0 + g.area.y1) / 2, `⭐ +${e.points}`, g.mode === 'versus' ? colors[e.player] : undefined);
           break;
+        case 'out': {
+          snd.play('gameOver');
+          const name = this.app.session?.participants[e.player]?.name ?? `P${e.player + 1}`;
+          this.banner(`${name} 탈락!<small>남은 사람은 계속해요</small>`, '', 1800);
+          break;
+        }
         case 'stageClear':
           snd.play('stageClear');
-          this.banner(`스테이지 ${e.stage} 클리어!<small>남은 목숨 보너스 +${e.bonus}</small>`, '', CLEAR_SEC * 1000);
+          this.banner(
+            `스테이지 ${e.stage} 클리어!<small>${
+              g.mode === 'versus' ? e.bonuses.map((b, i) => `P${i + 1} +${b}`).join(' · ') : `남은 목숨 보너스 +${e.bonus}`
+            }</small>`,
+            '',
+            CLEAR_SEC * 1000,
+          );
           this.setPhase('clear');
           break;
         case 'gameOver':
@@ -378,13 +390,25 @@ export class BalloonScreen implements Screen {
   private hud(): void {
     const g = this.game!;
     const p = g.p;
-    $('bhLives').textContent = '❤️'.repeat(g.lives) + '🤍'.repeat(Math.max(0, p.lives - g.lives));
-    $('bhMiss').textContent = `놓친 풍선 ${g.misses}/${p.missesPerLife}`;
-    $('bhStage').textContent = `스테이지 ${g.stage}`;
+    // 성능: 글자(특히 색 이모지)는 바뀔 때만 다시 쓴다. 매 프레임 쓰면 글꼴 그리기·배치 비용이 든다
+    const hearts = (n: number) => '❤️'.repeat(n) + '🤍'.repeat(Math.max(0, p.lives - n));
+    if (g.mode === 'versus') {
+      const cs = this.colors();
+      setHtml(
+        $('bhLives'),
+        g.livesOf.map((l, i) => `<span class="vs-lives" style="--pc:${cs[i]}">${g.out[i] ? '탈락' : hearts(l)}</span>`).join(''),
+      );
+      setText($('bhMiss'), `놓친 풍선 ${g.missesOf.map((m, i) => `P${i + 1} ${m}/${p.missesPerLife}`).join(' · ')}`);
+    } else {
+      setText($('bhLives'), hearts(g.lives));
+      setText($('bhMiss'), `놓친 풍선 ${g.misses}/${p.missesPerLife}`);
+    }
+    setText($('bhStage'), `스테이지 ${g.stage}`);
     const left = Math.ceil(g.timeLeft);
     const time = $('bhTime');
-    time.textContent = `0:${String(left).padStart(2, '0')}`;
-    time.classList.toggle('hurry', left <= 5 && this.phase === 'playing');
+    setText(time, `0:${String(left).padStart(2, '0')}`);
+    const hurry = left <= 5 && this.phase === 'playing';
+    if (time.classList.contains('hurry') !== hurry) time.classList.toggle('hurry', hurry);
     const score = $('bhScore');
     if (g.mode === 'versus') {
       const cs = this.colors();
@@ -393,8 +417,8 @@ export class BalloonScreen implements Screen {
         score.dataset.key = key;
         score.innerHTML = g.scores.map((s, i) => `<span class="vs" style="background:${cs[i]}">${s}</span>`).join('');
       }
-    } else score.textContent = String(g.totalScore);
-    $('bhSlow').hidden = !g.slowed;
+    } else setText(score, String(g.totalScore));
+    if ($('bhSlow').hidden !== !g.slowed) $('bhSlow').hidden = !g.slowed;
   }
 
   private showResult(): void {
@@ -477,6 +501,17 @@ export class BalloonScreen implements Screen {
     c.hidden = false;
     clearTimeout(this.comboTimer);
     this.comboTimer = window.setTimeout(() => (c.hidden = true), 1200);
+  }
+}
+
+/** 바뀔 때만 글자를 쓴다 */
+function setText(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
+}
+function setHtml(el: HTMLElement, html: string): void {
+  if (el.dataset.html !== html) {
+    el.dataset.html = html;
+    el.innerHTML = html;
   }
 }
 

@@ -189,8 +189,16 @@ export class AddPlayerScreen implements Screen {
   readonly name = 'add-player' as const;
   readonly el = $('scr-add');
   readonly avatarMode = 'none' as const;
-  readonly backTo = 'main' as const;
   private step: AddStep = 'photo';
+  /** 사진 다시 찍기(플레이어 관리에서 옴): 이 플레이어의 사진만 바꾼다 */
+  private retakeId: string | null = null;
+
+  /** 플레이어 관리에서 왔는지(저장·뒤로 가면 그리로 돌아간다) */
+  private fromPlayers = false;
+
+  get backTo(): 'main' | 'players' {
+    return this.retakeId || this.fromPlayers ? 'players' : 'main';
+  }
   private cv = $<HTMLCanvasElement>('photoCam');
   private g = this.cv.getContext('2d')!;
   /** 화면에 보여줄 카메라 영역(카메라 좌표) — 부드럽게 따라간다 */
@@ -207,7 +215,7 @@ export class AddPlayerScreen implements Screen {
   constructor(private app: App) {
     $('photoNow').addEventListener('click', () => this.capture());
     $('photoRetake').addEventListener('click', () => this.setStep('photo'));
-    $('photoOk').addEventListener('click', () => this.setStep('name'));
+    $('photoOk').addEventListener('click', () => (this.retakeId ? void this.saveRetake() : this.setStep('name')));
     $('nameSave').addEventListener('click', () => void this.save());
     const input = $<HTMLInputElement>('nameInput');
     input.addEventListener('input', () => this.validate());
@@ -233,6 +241,8 @@ export class AddPlayerScreen implements Screen {
 
   async enter(arg?: string): Promise<void> {
     this.demo = arg === 'demo';
+    this.retakeId = arg?.startsWith('retake:') ? arg.slice(7) : null;
+    this.fromPlayers = this.app.previousRoute() === 'players';
     this.players = await listPlayers();
     this.photo = null;
     $<HTMLInputElement>('nameInput').value = '';
@@ -245,12 +255,21 @@ export class AddPlayerScreen implements Screen {
     this.photoUrl = null;
   }
 
+  /** 다시 찍은 사진만 저장하고 플레이어 관리로 돌아간다 */
+  private async saveRetake(): Promise<void> {
+    if (!this.photo || !this.retakeId) return;
+    await updatePlayer(this.retakeId, { photoBlob: this.photo });
+    this.app.sound.play('cheer');
+    toast('사진을 바꿨어요');
+    void this.app.go('players', this.retakeId, { back: true });
+  }
+
   private setStep(s: AddStep): void {
     this.step = s;
     $('addPhotoStep').hidden = s !== 'photo';
     $('addReviewStep').hidden = s !== 'review';
     $('addNameStep').hidden = s !== 'name';
-    $('addTitle').textContent = s === 'photo' ? '📸 사진 찍기' : s === 'review' ? '이 사진 괜찮아요?' : '이름과 색을 골라요';
+    $('addTitle').textContent = s === 'photo' ? (this.retakeId ? '📸 사진 다시 찍기' : '📸 사진 찍기') : s === 'review' ? '이 사진 괜찮아요?' : '이름과 색을 골라요';
     this.okSince = 0;
     this.countStart = 0;
     $('photoCount').hidden = true;
@@ -291,7 +310,7 @@ export class AddPlayerScreen implements Screen {
       this.app.sound.play('cheer');
       toast(`${rec.name} 등록 완료!`);
       this.app.log(`player added ${rec.name}`);
-      void this.app.go('main', undefined, { back: true });
+      void this.app.go(this.fromPlayers ? 'players' : 'main', undefined, { back: true });
     } catch (err) {
       this.app.sound.play('error');
       $('nameError').textContent = String((err as Error).message) === 'taken' ? '이미 있는 이름이에요' : '저장하지 못했어요';
@@ -508,6 +527,16 @@ export class HallScreen implements Screen {
     this.leave();
     const [rows, players] = await Promise.all([listHall(game), listPlayers()]);
     const photo = new Map<string, string>();
+    // 이름·색은 기록 당시 값이 아니라 플레이어의 지금 값으로 보여 준다(편집 반영). 지운 플레이어는 기록 당시 이름
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const nameOf = (r: (typeof rows)[number], i: number) => {
+      const id = r.playerIds[i];
+      return (id && byId.get(id)?.name) || r.names[i];
+    };
+    const colorOf = (r: (typeof rows)[number], i: number) => {
+      const p = r.playerIds[i] ? byId.get(r.playerIds[i]!) : undefined;
+      return p ? colorHex(p.color) : (r.colors[i] ?? '#fff');
+    };
     for (const p of players) {
       if (!p.photoBlob) continue;
       const u = URL.createObjectURL(p.photoBlob);
@@ -531,7 +560,7 @@ export class HallScreen implements Screen {
       ids.forEach((id, i) => {
         const u = id ? photo.get(id) : undefined;
         const ph = el('div', 'pod-photo');
-        if (r) ph.style.borderColor = r.colors[i] ?? '#fff';
+        if (r) ph.style.borderColor = colorOf(r, i);
         if (u) {
           const img = el('img');
           img.src = u;
@@ -541,7 +570,7 @@ export class HallScreen implements Screen {
         pics.appendChild(ph);
       });
       pod.appendChild(pics);
-      pod.appendChild(el('div', 'pod-name', r ? r.names.join(' · ') : '-'));
+      pod.appendChild(el('div', 'pod-name', r ? r.playerIds.map((_, i) => nameOf(r, i)).join(' · ') : '-'));
       if (r) {
         const score = versus ? r.scores.join(' : ') : String(r.score);
         pod.appendChild(el('div', 'pod-score', `${score}점`));
@@ -554,7 +583,7 @@ export class HallScreen implements Screen {
     const rest = $('hallRest');
     rest.innerHTML = '';
     rows.slice(3, 10).forEach((r, i) => {
-      rest.appendChild(el('span', '', `${i + 4}위 ${r.names.join(' · ')} ${versus ? r.scores.join(':') : r.score}점`));
+      rest.appendChild(el('span', '', `${i + 4}위 ${r.playerIds.map((_, k) => nameOf(r, k)).join(' · ')} ${versus ? r.scores.join(':') : r.score}점`));
     });
   }
 }

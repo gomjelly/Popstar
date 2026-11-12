@@ -92,11 +92,13 @@ export type GameEvent =
   | { type: 'spawn'; balloon: Balloon }
   | { type: 'pop'; balloon: Balloon; player: number; points: number; combo: number; multiplier: number }
   | { type: 'bomb'; balloon: Balloon; player: number }
-  | { type: 'miss'; balloon: Balloon; misses: number }
-  | { type: 'life'; delta: number; lives: number; reason: 'bomb' | 'miss' | 'heart' }
+  | { type: 'miss'; balloon: Balloon; misses: number; player: number }
+  | { type: 'life'; delta: number; lives: number; reason: 'bomb' | 'miss' | 'heart'; player: number }
+  /** 대결: 목숨이 다 떨어진 사람(탈락). 다른 사람은 계속한다 */
+  | { type: 'out'; player: number }
   | { type: 'slow'; until: number }
   | { type: 'starBlast'; player: number; popped: Balloon[]; points: number }
-  | { type: 'stageClear'; stage: number; bonus: number; stageScore: number }
+  | { type: 'stageClear'; stage: number; bonus: number; bonuses: number[]; stageScore: number }
   | { type: 'gameOver'; stage: number; score: number };
 
 export interface StageDifficulty {
@@ -138,10 +140,15 @@ export class BalloonGame {
   stageTime = 0;
   /** 게임 전체 경과 시간(초, 멈춘 시간 제외) */
   time = 0;
-  lives: number;
-  /** 목숨을 깎는 놓친 풍선 수(missesPerLife 마다 0으로) */
-  misses = 0;
+  /** 목숨: 1인·협동은 [0] 하나를 함께 쓰고, 대결은 사람마다 따로(FR-BAL-20 대결 예외) */
+  livesOf: number[];
+  /** 목숨을 깎는 놓친 풍선 수(missesPerLife 마다 0으로). 대결은 사람마다 */
+  missesOf: number[];
+  /** 대결: 목숨이 다 떨어져 탈락했는지 */
+  out: boolean[];
   totalMisses = 0;
+  /** 대결: 놓친 풍선을 누구 몫으로 셀지 정하려고 기억하는 사람별 손 위치(x) */
+  private lastX = [-0.3, 0.3];
   /** 1인·협동은 [0]만, 대결은 플레이어별 */
   scores: number[];
   stageScores: number[] = [];
@@ -171,10 +178,34 @@ export class BalloonGame {
     this.spawnY = Math.max(spawnY, area.y1);
     this.mode = mode;
     this.rng = rng;
-    this.lives = p.lives;
     const n = mode === 'versus' ? 2 : 1;
+    this.livesOf = new Array<number>(n).fill(p.lives);
+    this.missesOf = new Array<number>(n).fill(0);
+    this.out = new Array<boolean>(n).fill(false);
     this.scores = new Array<number>(n).fill(0);
     this.combos = new Array<number>(n).fill(0);
+  }
+
+  /** 1인·협동: 함께 쓰는 목숨. 대결: 가장 많이 남은 사람의 목숨 */
+  get lives(): number {
+    return this.mode === 'versus' ? Math.max(...this.livesOf) : this.livesOf[0];
+  }
+  set lives(v: number) {
+    this.livesOf[0] = v;
+  }
+  get misses(): number {
+    return this.missesOf[0];
+  }
+  set misses(v: number) {
+    this.missesOf[0] = v;
+  }
+
+  /** 대결: 놓친 풍선은 그 풍선에 가장 가까이 있던(탈락하지 않은) 사람 몫 */
+  private ownerOf(x: number): number {
+    if (this.mode !== 'versus') return 0;
+    const alive = [0, 1].filter((i) => !this.out[i]);
+    if (!alive.length) return 0;
+    return alive.sort((a, b) => Math.abs(this.lastX[a] - x) - Math.abs(this.lastX[b] - x))[0];
   }
 
   get areaH(): number {
@@ -236,8 +267,15 @@ export class BalloonGame {
       if (b.baseX > lim.hi) b.baseX = lim.hi;
     }
 
-    // 손 판정
+    // 손 판정(대결에서 탈락한 사람의 손은 빼고)
     const hr = this.handRadius();
+    if (this.mode === 'versus') {
+      for (const p of [0, 1]) {
+        const mine = hands.filter((h) => h.player === p);
+        if (mine.length) this.lastX[p] = mine.reduce((a, h) => a + h.x, 0) / mine.length;
+      }
+      hands = hands.filter((h) => !this.out[this.who(h.player)]);
+    }
     for (const h of hands) {
       for (const b of [...this.balloons]) {
         if (!this.balloons.includes(b)) continue;
@@ -253,13 +291,15 @@ export class BalloonGame {
       if (b.y + b.r >= this.area.y0) continue;
       this.remove(b);
       if (b.kind === 'normal' || b.kind === 'gold') {
-        this.misses++;
+        const w = this.ownerOf(b.x);
+        this.missesOf[w]++;
         this.totalMisses++;
-        this.combos.fill(0);
-        ev.push({ type: 'miss', balloon: b, misses: this.misses });
-        if (this.misses >= this.p.missesPerLife) {
-          this.misses = 0;
-          this.loseLife('miss', ev);
+        if (this.mode === 'versus') this.combos[w] = 0;
+        else this.combos.fill(0);
+        ev.push({ type: 'miss', balloon: b, misses: this.missesOf[w], player: w });
+        if (this.missesOf[w] >= this.p.missesPerLife) {
+          this.missesOf[w] = 0;
+          this.loseLife(w, 'miss', ev);
           if (this.phase !== 'playing') return ev;
         }
       }
@@ -267,13 +307,14 @@ export class BalloonGame {
 
     // 스테이지 끝
     if (this.stageTime >= this.p.stageSec) {
-      const bonus = this.lives * this.p.points.clearPerLife;
-      for (let i = 0; i < this.scores.length; i++) this.scores[i] += bonus;
+      // 남은 목숨 × 100 보너스(대결은 각자 자기 목숨만큼)
+      const bonuses = this.livesOf.map((l, i) => (this.out[i] ? 0 : l * this.p.points.clearPerLife));
+      bonuses.forEach((b, i) => (this.scores[i] += b));
       const stageScore = this.totalScore - this.stageStartScore;
       this.stageScores.push(stageScore);
       this.balloons = [];
       this.phase = 'stageClear';
-      ev.push({ type: 'stageClear', stage: this.stage, bonus, stageScore });
+      ev.push({ type: 'stageClear', stage: this.stage, bonus: Math.max(...bonuses), bonuses, stageScore });
     }
     return ev;
   }
@@ -294,7 +335,7 @@ export class BalloonGame {
     if (b.kind === 'bomb') {
       this.combos[w] = 0;
       ev.push({ type: 'bomb', balloon: b, player });
-      this.loseLife('bomb', ev);
+      this.loseLife(w, 'bomb', ev);
       return;
     }
     this.popped++;
@@ -306,9 +347,9 @@ export class BalloonGame {
     this.scores[w] += points;
     if (b.kind === 'gold') this.goldPopped++;
     ev.push({ type: 'pop', balloon: b, player, points, combo: this.combos[w], multiplier: mult });
-    if (b.kind === 'heart' && this.lives < this.p.maxLives) {
-      this.lives++;
-      ev.push({ type: 'life', delta: 1, lives: this.lives, reason: 'heart' });
+    if (b.kind === 'heart' && this.livesOf[w] < this.p.maxLives) {
+      this.livesOf[w]++;
+      ev.push({ type: 'life', delta: 1, lives: this.livesOf[w], reason: 'heart', player: w });
     } else if (b.kind === 'clock') {
       this.slowUntil = this.time + this.p.slowSec;
       ev.push({ type: 'slow', until: this.slowUntil });
@@ -326,10 +367,16 @@ export class BalloonGame {
     }
   }
 
-  private loseLife(reason: 'bomb' | 'miss', ev: GameEvent[]): void {
-    this.lives = Math.max(0, this.lives - 1);
-    ev.push({ type: 'life', delta: -1, lives: this.lives, reason });
-    if (this.lives <= 0) {
+  private loseLife(w: number, reason: 'bomb' | 'miss', ev: GameEvent[]): void {
+    this.livesOf[w] = Math.max(0, this.livesOf[w] - 1);
+    ev.push({ type: 'life', delta: -1, lives: this.livesOf[w], reason, player: w });
+    if (this.livesOf[w] > 0) return;
+    if (this.mode === 'versus') {
+      this.out[w] = true;
+      ev.push({ type: 'out', player: w });
+    }
+    // 1인·협동은 바로, 대결은 둘 다 탈락하면 끝
+    if (this.out.every(Boolean) || this.mode !== 'versus') {
       this.stageScores.push(this.totalScore - this.stageStartScore);
       this.phase = 'over';
       this.balloons = [];

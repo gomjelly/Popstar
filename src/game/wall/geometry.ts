@@ -247,6 +247,8 @@ export interface Wall {
   margin: number;
   /** 금색 풍선 영역: 몸 캡슐 + 이만큼(여유 폭보다 작다) */
   targetPad: number;
+  /** 금색 풍선을 채운 것으로 보는 여유(몸 캡슐 + 이만큼). 조금 어긋나도 채운 것으로 친다 */
+  fillTolerance: number;
   targetCount: number;
   joints: Joints;
 }
@@ -271,6 +273,7 @@ export function makeWall(pose: WallPose, prof: BodyProfile, H: number, floorY: n
   const caps = capsules(joints);
   const margin = marginBubbles * d;
   const targetPad = Math.min(0.5 * d, margin * 0.8);
+  const fillTolerance = Math.max(targetPad, Math.min(1.0 * d, margin));
   const bubbles: Bubble[] = [];
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
@@ -280,15 +283,15 @@ export function makeWall(pose: WallPose, prof: BodyProfile, H: number, floorY: n
     }
   }
   const targetCount = bubbles.filter((b) => b.target).length;
-  return { pose, bubbles, r, d, x0, x1: x0 + W, y0, y1: y0 + WH, margin, targetPad, targetCount, joints };
+  return { pose, bubbles, r, d, x0, x1: x0 + W, y0, y1: y0 + WH, margin, targetPad, fillTolerance, targetCount, joints };
 }
 
-/** 몸으로 채운 금색 풍선 번호(정답 자세와 같은 규칙: 몸 캡슐 + targetPad 안) */
+/** 몸으로 채운 금색 풍선 번호(몸 캡슐 + fillTolerance 안) */
 export function filledTargets(wall: Wall, body: Capsule[]): number[] {
   const out: number[] = [];
   wall.bubbles.forEach((b, i) => {
     if (!b.target) return;
-    if (body.some((c) => distToSegment(b, c.a, c.b) < c.r + wall.targetPad)) out.push(i);
+    if (body.some((c) => distToSegment(b, c.a, c.b) < c.r + wall.fillTolerance)) out.push(i);
   });
   return out;
 }
@@ -311,7 +314,8 @@ export function poppedBubbles(wall: Wall, body: Capsule[]): number[] {
   const out: number[] = [];
   wall.bubbles.forEach((b, i) => {
     if (b.hole) return;
-    if (body.some((c) => distToSegment(b, c.a, c.b) < c.r + wall.r)) out.push(i);
+    // 살짝 스치는 것은 봐주고, 거품 안쪽으로 들어가야 터진다
+    if (body.some((c) => distToSegment(b, c.a, c.b) < c.r + wall.r * 0.6)) out.push(i);
   });
   return out;
 }
@@ -349,16 +353,16 @@ export function gradeOf(popped: number, fill: number, g: Grades, f: FillGrades):
  * 채운 비율 → 0~1 점수. fullFill(85%) 이상이면 만점, zeroFill(30%) 이하면 0.
  * (카메라 관절로 그린 몸은 정답보다 조금 가늘어 100%를 채우기 어렵다)
  */
-export function fillScore(fill: number, fullFill = 0.85, zeroFill = 0.3): number {
+export function fillScore(fill: number, fullFill = 0.75, zeroFill = 0.2): number {
   return Math.max(0, Math.min(1, (fill - zeroFill) / Math.max(1e-6, fullFill - zeroFill)));
 }
 
 /** 벽 하나 점수 = 100/N × 채움 점수 × max(0, 1 − p/P0) */
-export function wallScore(popped: number, fill: number, walls: number, zeroScoreBubbles: number, fullFill = 0.85, zeroFill = 0.3): number {
+export function wallScore(popped: number, fill: number, walls: number, zeroScoreBubbles: number, fullFill = 0.75, zeroFill = 0.2): number {
   return (100 / walls) * fillScore(fill, fullFill, zeroFill) * Math.max(0, 1 - popped / zeroScoreBubbles);
 }
 
-export function totalScore(results: { popped: number; fill: number }[], zeroScoreBubbles: number, fullFill = 0.85, zeroFill = 0.3): number {
+export function totalScore(results: { popped: number; fill: number }[], zeroScoreBubbles: number, fullFill = 0.75, zeroFill = 0.2): number {
   return Math.round(results.reduce((a, r) => a + wallScore(r.popped, r.fill, results.length, zeroScoreBubbles, fullFill, zeroFill), 0));
 }
 
@@ -415,11 +419,11 @@ export const DEFAULT_WALL: WallParams = {
   playerScreenHeight: 0.6,
   approachSec: { first: 5.5, last: 3 },
   judgeWindowMs: 150,
-  holeMarginBubbles: { easy: 1.5, normal: 1.0, hard: 0.6 },
-  zeroScoreBubbles: 40,
-  fillGrades: { perfect: 0.85, great: 0.7, good: 0.5 },
-  zeroFill: 0.3,
-  grades: { perfect: 0, great: 5, good: 15 },
+  holeMarginBubbles: { easy: 2.0, normal: 1.4, hard: 1.0 },
+  zeroScoreBubbles: 60,
+  fillGrades: { perfect: 0.75, great: 0.6, good: 0.4 },
+  zeroFill: 0.2,
+  grades: { perfect: 0, great: 6, good: 18 },
   snapshotMode: 'photo',
   difficulty: 'normal',
   calibHoldMs: 3000,

@@ -36,6 +36,7 @@
         <div id="playerGrid" class="player-grid"></div>
         <div class="row center">
           <button class="hov mid primary" id="selectStart" data-name="select-start">시작!</button>
+          <button class="hov small" id="selectManage" data-name="select-manage">✏️ 플레이어 관리</button>
         </div>
       </section>
 
@@ -186,6 +187,38 @@
         </div>
       </section>
 
+      <!-- ===== 플레이어 관리 (FR-PLY-04) ===== -->
+      <section class="screen" id="scr-players" hidden>
+        <h2 class="title">👥 플레이어 관리</h2>
+        <div id="pmGrid" class="player-grid"></div>
+        <p id="pmHint" class="hint-line">고칠 플레이어를 골라요</p>
+        <div id="pmEdit" class="pm-edit" hidden>
+          <img id="pmPhoto" class="name-photo" alt="" />
+          <div class="name-col">
+            <label class="name-label">이름 (8자까지)</label>
+            <input id="pmName" type="text" maxlength="16" autocomplete="off" spellcheck="false" />
+            <p id="pmError" class="name-error"></p>
+            <div id="pmColors" class="color-row"></div>
+            <div class="row">
+              <button class="hov small" id="pmRetake" data-name="pm-retake">📸 사진 다시 찍기</button>
+              <button class="hov small primary" id="pmSave" data-name="pm-save">💾 저장</button>
+              <button class="hov small danger" id="pmDelete" data-name="pm-delete">🗑 삭제</button>
+            </div>
+          </div>
+        </div>
+        <div id="pmConfirm" class="overlay" hidden>
+          <div class="overlay-card">
+            <h2 id="pmConfirmTitle">지울까요?</h2>
+            <p id="pmConfirmText"></p>
+            <div class="row center">
+              <button class="hov mid danger" id="pmDelAll" data-name="pm-del-all">기록도 함께 지우기</button>
+              <button class="hov mid" id="pmDelKeep" data-name="pm-del-keep">기록은 남기기</button>
+              <button class="hov mid" id="pmDelCancel" data-name="pm-del-cancel">취소</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== 설정 ===== -->
       <section class="screen" id="scr-settings" hidden>
         <h2 class="title">⚙️ 설정</h2>
@@ -221,6 +254,7 @@
             <button class="small" id="filePlay">⏸</button>
             <input type="range" id="fileSeek" min="0" max="1000" value="0" />
           </div>
+          <button class="hov small" id="settingsPlayers" data-name="settings-players">👥 플레이어 관리 (이름·사진 바꾸기, 삭제)</button>
           <p id="settingsStatus" class="status"></p>
           <div class="credits">
             <b>크레딧</b>

@@ -222,3 +222,43 @@ test('가상 하늘: 풍선은 하늘 꼭대기에서 생겨 손 닿는 범위�
   }
   assert.ok(t > 1.5, `하늘을 지나는 데 ${t.toFixed(2)}초`);
 });
+
+test('대결: 목숨은 각자. 폭탄을 친 사람만 잃고, 먼저 다 잃은 사람은 탈락, 둘 다 탈락하면 끝', () => {
+  const g = new BalloonGame(plain(), AREA, 'versus', seeded(21));
+  assert.deepEqual(g.livesOf, [3, 3]);
+  const bomb = (player: number) => {
+    const b = place(g, 'bomb', player ? 0.5 : -0.5, 0.5);
+    return g.update(0.001, [{ player, x: b.x, y: b.y }]);
+  };
+  bomb(1);
+  assert.deepEqual(g.livesOf, [3, 2]);
+  bomb(1);
+  const ev = bomb(1);
+  assert.deepEqual(g.livesOf, [3, 0]);
+  assert.ok(ev.some((e) => e.type === 'out' && e.player === 1));
+  assert.equal(g.phase, 'playing', '한 명만 탈락하면 계속');
+  // 탈락한 사람의 손은 더 이상 터뜨리지 못한다
+  const b = place(g, 'normal', 0.5, 0.5);
+  g.update(0.001, [{ player: 1, x: b.x, y: b.y }]);
+  assert.equal(g.scores[1], 0);
+  bomb(0);
+  bomb(0);
+  bomb(0);
+  assert.equal(g.phase, 'over');
+});
+
+test('대결: 놓친 풍선은 가까이 있던 사람 몫, 하트는 터뜨린 사람 목숨, 클리어 보너스는 각자', () => {
+  const g = new BalloonGame({ ...plain(), stageSec: 1 }, AREA, 'versus', seeded(22));
+  g.update(0.001, [{ player: 0, x: -0.6, y: 0.5 }, { player: 1, x: 0.6, y: 0.5 }]);
+  for (let i = 0; i < 5; i++) place(g, 'normal', 0.6, AREA.y0 - 0.2);
+  g.update(0.001, [{ player: 0, x: -0.6, y: 0.5 }, { player: 1, x: 0.6, y: 0.5 }]);
+  assert.deepEqual(g.livesOf, [3, 2], '오른쪽(P2) 쪽에서 놓친 5개 → P2 목숨 −1');
+  const h = place(g, 'heart', 0.6, 0.5);
+  g.update(0.001, [{ player: 1, x: h.x, y: h.y }]);
+  assert.deepEqual(g.livesOf, [3, 3]);
+  g.livesOf = [3, 1];
+  let clear = null;
+  for (let i = 0; i < 40 && !clear; i++) for (const e of g.update(0.05, [])) if (e.type === 'stageClear') clear = e;
+  assert.ok(clear && clear.type === 'stageClear');
+  assert.deepEqual(clear.bonuses, [300, 100]);
+});

@@ -55,8 +55,8 @@ test('자세 각도: 별은 손이 어깨보다 높고 발이 벌어진다, 발�
   assert.ok(f.anL!.y > f.anR!.y + 0.1 * H);
 });
 
-const G = { perfect: 0, great: 5, good: 15 };
-const F = { perfect: 0.85, great: 0.7, good: 0.5 };
+const G = { perfect: 0, great: 6, good: 18 };
+const F = { perfect: 0.75, great: 0.6, good: 0.4 };
 
 test('모든 자세: 같은 자세 그대로 통과하면 벽 0개 + 금색 풍선 100% = Perfect(쉬움·보통·어려움, 어른·아이)', () => {
   for (const prof of [ADULT, CHILD]) {
@@ -133,18 +133,18 @@ test('판정 공정성(NFR-03): 같은 자세로 통과하면(사람이 내는 �
 });
 
 test('판정 문구와 점수(100점 만점, 채운 비율 × 벽 감점)', () => {
-  assert.equal(gradeOf(0, 0.9, G, F), 'Perfect');
-  assert.equal(gradeOf(0, 0.8, G, F), 'Great');
-  assert.equal(gradeOf(5, 0.95, G, F), 'Great');
-  assert.equal(gradeOf(15, 0.6, G, F), 'Good');
+  assert.equal(gradeOf(0, 0.8, G, F), 'Perfect');
+  assert.equal(gradeOf(0, 0.7, G, F), 'Great');
+  assert.equal(gradeOf(6, 0.95, G, F), 'Great');
+  assert.equal(gradeOf(18, 0.5, G, F), 'Good');
   assert.equal(gradeOf(0, 0.3, G, F), 'Oops');
-  assert.equal(gradeOf(16, 1, G, F), 'Oops');
+  assert.equal(gradeOf(19, 1, G, F), 'Oops');
   const all = (popped: number, fill: number, n: number) => Array.from({ length: n }, () => ({ popped, fill }));
   assert.equal(totalScore(all(0, 1, 7), 40), 100);
   assert.equal(totalScore(all(40, 1, 4), 40), 0);
-  assert.equal(totalScore(all(0, 0.85, 4), 40), 100);
-  assert.equal(totalScore(all(0, 0.3, 4), 40), 0);
-  assert.equal(totalScore(all(0, 0.575, 4), 40), 50);
+  assert.equal(totalScore(all(0, 0.75, 4), 40), 100);
+  assert.equal(totalScore(all(0, 0.2, 4), 40), 0);
+  assert.equal(totalScore(all(0, 0.475, 4), 40), 50);
   assert.equal(totalScore([{ popped: 0, fill: 1 }, { popped: 20, fill: 1 }], 40), 75);
 });
 
@@ -157,4 +157,16 @@ test('자세 고르기: 반복 없이, 뒤로 갈수록 레벨이 오른다 / �
   for (let i = 1; i < picked.length; i++) assert.ok(picked[i].level >= picked[i - 1].level);
   assert.equal(approachSec(0, 8, 8, 5), 8);
   assert.equal(approachSec(7, 8, 8, 5), 5);
+});
+
+test('쉬워진 판정: 보통 난이도에서 팔이 12° 정도 어긋나도 Great 이상, 20°면 Good 이상', () => {
+  for (const id of ['star', 't-pose', 'manse', 'v-pose', 'muscle']) {
+    const p = pose(id);
+    const wall = makeWall(p, ADULT, H, FLOOR, CFG, 1.4);
+    for (const [off, ok] of [[12, ['Perfect', 'Great']], [-12, ['Perfect', 'Great']], [20, ['Perfect', 'Great', 'Good']]] as const) {
+      const hit = hitWall(wall, capsules(poseJoints(tilt(p, off), ADULT, H, 0, FLOOR)));
+      const g = gradeOf(hit.popped.length, hit.fill, G, F);
+      assert.ok((ok as readonly string[]).includes(g), `${id} ${off}°: ${g} (벽 ${hit.popped.length}개, 채움 ${(hit.fill * 100).toFixed(0)}%)`);
+    }
+  }
 });

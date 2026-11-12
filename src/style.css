@@ -1275,3 +1275,61 @@ button:disabled {
   align-items: center;
   padding-top: 0;
 }
+
+/* 대결: 사람별 목숨 */
+.vs-lives {
+  display: inline-block;
+  font-size: 4.6vh;
+  padding: 0.2vh 1vh;
+  margin-right: 1vh;
+  border-radius: 1.5vh;
+  border: 0.4vh solid var(--pc);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- 플레이어 관리 ---------- */
+.pm-edit {
+  display: flex;
+  gap: 3vw;
+  align-items: center;
+  padding: 2vh 3vw;
+  border-radius: 3vh;
+  background: rgba(0, 0, 0, 0.25);
+}
+.pm-edit .name-photo {
+  width: 26vh;
+  height: 26vh;
+}
+#pmName {
+  font: inherit;
+  font-size: 6vh;
+  width: 40vw;
+  padding: 0.6vh 2vh;
+  border-radius: 2vh;
+  border: 0.6vh solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  outline: none;
+}
+#pmName:focus {
+  border-color: var(--accent);
+}
+.pm-edit .swatch {
+  width: 7vh;
+  height: 7vh;
+}
+.danger {
+  background: linear-gradient(160deg, #ff6b7a, #d0304a);
+}
+#scr-players .player-grid .player-card {
+  width: 15vh;
+  height: 20vh;
+}
+#scr-players .player-card img,
+#scr-players .player-card .ph {
+  width: 11vh;
+  height: 11vh;
+}
+#scr-players .player-card .pname {
+  font-size: 4vh;
+}

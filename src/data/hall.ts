@@ -48,3 +48,22 @@ export async function addHall(rec: HallRecord): Promise<number | null> {
   await done(tx);
   return rank;
 }
+
+/** 이 플레이어가 들어간 기록 수 */
+export async function countHallByPlayer(playerId: string): Promise<number> {
+  const db = await openDb();
+  const rows = await req(db.transaction('halloffame').objectStore('halloffame').getAll() as IDBRequest<HallRecord[]>);
+  return rows.filter((r) => r.playerIds.includes(playerId)).length;
+}
+
+/** 플레이어를 지울 때 그 사람이 들어간 기록도 지운다(FR-PLY-04). 지운 수를 돌려준다 */
+export async function deleteHallByPlayer(playerId: string): Promise<number> {
+  const db = await openDb();
+  const tx = db.transaction('halloffame', 'readwrite');
+  const store = tx.objectStore('halloffame');
+  const rows = await req(store.getAll() as IDBRequest<HallRecord[]>);
+  const mine = rows.filter((r) => r.playerIds.includes(playerId));
+  for (const r of mine) store.delete(r.id);
+  await done(tx);
+  return mine.length;
+}
