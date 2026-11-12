@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('popstar', {
   getTestConfig: () => ipcRenderer.invoke('test:config'),
   getTestVideo: () => ipcRenderer.invoke('test:video'),
   sendMetrics: (line) => ipcRenderer.send('test:metrics', line),
+  saveRecording: (bytes) => ipcRenderer.invoke('test:saveRecording', bytes),
   quit: () => ipcRenderer.invoke('app:quit'),
   onDisplaysChanged: (cb) => {
     const handler = (_e, displays) => cb(displays);

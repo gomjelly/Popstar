@@ -23,6 +23,7 @@ const isDev = process.argv.includes('--dev');
 //   --mirror=0|1              거울 반전을 이번 실행에만 끄거나 켠다(설정은 바꾸지 않음)
 //   --preview=0|1             카메라 보기를 이번 실행에만 끄거나 켠다
 //   --hand=0|1                메뉴 손 조작을 이번 실행에만 끄거나 켠다
+//   --record=<파일.mp4|webm>  앱 창을 녹화해 저장한다(README용). --record-delay=<초>(기본 1) 뒤 시작, --record-sec=<초>(기본 20) 동안
 //   --quit-after=<초>          그 시간이 지나면 앱을 끝낸다(자동 검증용)
 //   --profile-dir=<폴더>       기록·설정을 이 폴더에 따로 저장한다(테스트 기록이 실제 기록과 섞이지 않게)
 //   --window-size=1280x720    창 내용 크기
@@ -40,6 +41,9 @@ const botOnly = process.argv.includes('--bot-only');
 const botHands = process.argv.includes('--bot-hands') || botOnly;
 const wallPoses = argValue('wall-poses');
 const mirrorArg = argValue('mirror');
+const recordFile = argValue('record');
+const recordDelay = Number(argValue('record-delay')) || 1;
+const recordSec = Number(argValue('record-sec')) || 20;
 const handArg = argValue('hand');
 const previewArg = argValue('preview');
 const quitAfter = Number(argValue('quit-after')) || 0;
@@ -244,6 +248,7 @@ ipcMain.handle('test:config', () => ({
   botOnly,
   wallPoses,
   mirror: mirrorArg,
+  record: recordFile ? { delay: recordDelay, sec: recordSec, mp4: !recordFile.endsWith('.webm') } : null,
   hand: handArg,
   preview: previewArg,
 }));
@@ -251,6 +256,14 @@ ipcMain.handle('test:video', () => {
   if (!testVideo) return null;
   const file = path.resolve(testVideo);
   return { name: path.basename(file), data: fs.readFileSync(file) };
+});
+ipcMain.handle('test:saveRecording', (_e, bytes) => {
+  if (!recordFile) return false;
+  const out = path.resolve(recordFile);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, Buffer.from(bytes));
+  console.log(`[record] ${out} (${(bytes.byteLength / 1e6).toFixed(1)} MB)`);
+  return true;
 });
 ipcMain.on('test:metrics', (_e, line) => {
   if (logMetrics) console.log(`[metrics] ${line}`);
@@ -333,6 +346,12 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
 
     session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+      // 녹화(--record): 앱 창 자신을 캡처한다
+      if (selectedCaptureId === 'self' && mainWindow) {
+        const all = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } });
+        const me = all.find((s) => s.id === mainWindow.getMediaSourceId());
+        if (me) return callback({ video: me });
+      }
       const src = (await captureSources(false)).find((s) => s.id === selectedCaptureId);
       if (src) callback({ video: src });
       else callback({});

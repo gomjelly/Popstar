@@ -38,6 +38,8 @@ export interface TestConfig {
   hand: string | null;
   /** 카메라 보기 강제('0' | '1') */
   preview: string | null;
+  /** README용 앱 창 녹화 */
+  record: { delay: number; sec: number; mp4: boolean } | null;
 }
 
 export interface PopstarBridge {
@@ -47,6 +49,7 @@ export interface PopstarBridge {
   /** --test-video로 지정한 동영상(없으면 null) */
   getTestVideo(): Promise<{ name: string; data: Uint8Array } | null>;
   sendMetrics(line: string): void;
+  saveRecording(bytes: Uint8Array): Promise<boolean>;
   quit(): Promise<void>;
   listDisplays(): Promise<DisplayInfo[]>;
   getWindowState(): Promise<WindowState | null>;
