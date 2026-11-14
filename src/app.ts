@@ -293,12 +293,14 @@ export class App {
       this.lastVideoTime = v.currentTime;
       this.camRate.tick(now);
       if (this.pose.threaded) {
-        // 작업 스레드로 보내고 결과는 나중에 handlePoses 로 받는다. 옷 색은 사람이 둘 이상 보일 때만 잰다.
-        this.pose.submit(v, this.lastPoseCount > 1 || this.tracker.limit > 1);
+        // 작업 스레드로 보내고 결과는 나중에 handlePoses 로 받는다. 옷 색은 늘 잰다(작업 스레드라 가볍다):
+        // 1인 게임도 보정 때부터 플레이어 옷 색을 알아야, 나중에 옆에 다른 사람이 보여도 넘어가지 않는다.
+        this.pose.submit(v, true);
       } else if (this.pose.ready) {
         const r = this.pose.detect(v);
         const tl = performance.now();
-        if (r.poses.length > 1 || this.tracker.limit > 1) {
+        // 메인 스레드 인식(개발 모드)에서는 게임·보정 중이거나 여러 명일 때 잰다
+        if (r.poses.length > 1 || this.tracker.limit > 1 || this.session) {
           this.looks.capture(v);
           r.looks = r.poses.map((p) => this.looks.measure(p));
         }
@@ -328,12 +330,10 @@ export class App {
   }
 
   /** 인식 결과(관절·옷 색)로 번호를 이어 붙인다. 작업 스레드 결과도 여기로 온다 */
-  private lastPoseCount = 0;
   handlePoses(r: DetectResult, now: number): void {
     this.inferMs = this.inferMs * 0.9 + r.inferenceMs * 0.1;
     this.poseRate.tick(now);
     this.detections++;
-    this.lastPoseCount = r.poses.length;
     const cam = r.poses.map((p) => toCameraSpace(p, this.videoAspect, this.mirror));
     this.lastCandidates = cam.map((p) => `${p[23].x.toFixed(2)}:${priorityOf(p, this.videoAspect).toFixed(2)}`).join(',');
     const before = this.tracker.lastEvent;

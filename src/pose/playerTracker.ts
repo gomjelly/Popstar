@@ -42,6 +42,12 @@ const UNMATCHED_COST = 1.2;
 const LOOK_REJECT = 0.35;
 /** 게임 전(메뉴·보정): 우선순위가 이만큼 더 높은 사람이 이 시간 넘게 계속 보이면 번호를 넘겨준다 */
 const SWAP_MARGIN = 0.08;
+/** 게임 중 잠깐 놓친 번호를 옷 색으로 확인할 수 없을 때는 이 거리 안의 사람만 같은 사람으로 본다 */
+const NO_LOOK_GATE = 0.3;
+/** 게임 중 직전 프레임에 보이던 번호가 한 프레임 사이 움직일 수 있는 거리(카메라 좌표, 영상 높이 = 1) */
+const PRESENT_GATE = 0.4;
+/** 게임 중 놓친 번호를 다시 잇는 후보의 최소 우선순위(화면 끝에 살짝 걸친 사람은 제외) */
+const REACQUIRE_PRIO = 0.15;
 const SWAP_MS = 700;
 
 /** 추적 우선순위: 가운데에 가까울수록, 관절이 잘 보일수록, 카메라에 가까울수록(크게 보일수록) 높다 */
@@ -121,8 +127,21 @@ export class PlayerTracker {
     /** 번호가 있는 사람 ↔ 후보 비용. 같은 사람이 아니면 Infinity */
     const cost = (di: number, s: Slot): number => {
       const look = appearanceDistance(looks[di], s.look);
-      if (this.mode === 'game' && look !== null && look > LOOK_REJECT) return Infinity;
-      const c = dist(anchors[di], s.anchor!) + (s.present ? 0 : LOST_PENALTY) + (look === null ? 0 : LOOK_WEIGHT * look);
+      const d = dist(anchors[di], s.anchor!);
+      if (this.mode === 'game') {
+        // 게임 중: 옷 색이 다르면 다른 사람. 놓쳤던 번호는 더 엄격하게(옆에 걸친 구경꾼에게 넘어가지 않게)
+        if (look !== null && look > LOOK_REJECT) return Infinity;
+        if (!s.present && prio[di] < REACQUIRE_PRIO) return Infinity;
+        if (look === null && d > NO_LOOK_GATE) return Infinity;
+        // 직전 프레임까지 보이던 사람은 한 프레임에 멀리 가지 못한다(인식이 한 번 끊긴 사이 옆 사람에게 넘어가지 않게)
+        if (s.present && d > PRESENT_GATE) return Infinity;
+        // 놓친 번호는 다시 잡는 거리를 천천히만 넓힌다(1초에 0.1). 잠깐 끊긴 사이 근처 구경꾼에게 넘어가지 않게
+        if (!s.present) {
+          const lost = s.lostSince === null ? 0 : (now - s.lostSince) / 1000;
+          if (d > PRESENT_GATE + 0.1 * Math.min(4, lost)) return Infinity;
+        }
+      }
+      const c = d + (s.present ? 0 : LOST_PENALTY) + (look === null ? 0 : LOOK_WEIGHT * look);
       const lostSec = s.present || s.lostSince === null ? 0 : (now - s.lostSince) / 1000;
       return c <= GATE + 0.4 * Math.min(3, lostSec) ? c : Infinity;
     };
