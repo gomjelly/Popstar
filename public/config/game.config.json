@@ -129,15 +129,15 @@
       "min": 1.5,
       "max": 4.5
     },
-    "riseSec": 1.1,
-    "peakSec": 0.45,
-    "fallSec": 0.9,
-    "nibblePerSec": 0.45,
-    "nibbleLevel": 0.25,
+    "riseSec": 0.9,
+    "peakSec": 0.3,
+    "fallSec": 0.7,
+    "nibblePerSec": 0.7,
+    "nibbleLevel": 0.32,
     "tiers": {
-      "big": 0.85,
-      "mid": 0.6,
-      "small": 0.35
+      "big": 0.9,
+      "mid": 0.65,
+      "small": 0.4
     },
     "showSec": 1.8,
     "gesture": {
