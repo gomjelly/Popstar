@@ -13,7 +13,7 @@ const PEOPLE = Number(params.get('people') ?? 2);
 const SCRIPT = params.get('script') ?? 'basic';
 /** wall 대본: 처음 6초 기준 자세(보정) 뒤 이 자세로 버틴다 — stand | star */
 const HOLD = params.get('hold') ?? 'stand';
-export const DURATION = SCRIPT === 'balloon' ? 40 : SCRIPT === 'wall' ? 120 : 50;
+export const DURATION = SCRIPT === 'balloon' ? 40 : SCRIPT === 'wall' ? 120 : SCRIPT === 'fish' ? 60 : 50;
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const info = document.getElementById('info') as HTMLDivElement;
@@ -396,6 +396,41 @@ function wallPose(t: number): BodyPose {
   return p;
 }
 
+// ---------- 낚시 대본 ----------
+// 0~8초 차렷(보정·카운트다운) → 7.5초마다: 손을 머리 위로(0.6초) → 앞으로 휘두르기(0.2~0.45초, 매번 다름)
+// → 앞으로 뻗고 기다리기 → 팔을 접어 위로 당기기 → 내리기
+
+function fishArm(t: number, seed: number): LimbPose {
+  const start = 8 + seed;
+  if (t < start) return rest();
+  const k = Math.floor((t - start) / 7.5);
+  const c = (t - start) % 7.5;
+  const swing = [0.22, 0.35, 0.45, 0.28][k % 4];
+  const pullAt = 3.2 + [0, 0.9, 1.8, 0.5][(k + seed) % 4];
+  const over: LimbPose = { abd: 165, flex: 10, bend: 5 };
+  const fwd: LimbPose = { abd: 10, flex: 75, bend: 6 };
+  const up: LimbPose = { abd: 20, flex: 140, bend: 40 };
+  const mix = (a: LimbPose, b: LimbPose, u: number): LimbPose => ({ abd: lerp(a.abd, b.abd, u), flex: lerp(a.flex, b.flex, u), bend: lerp(a.bend, b.bend, u) });
+  if (c < 0.6) return mix(rest(), over, smooth(0, 0.6, c));
+  if (c < 0.6 + swing) return mix(over, fwd, (c - 0.6) / swing);
+  if (c < pullAt) return fwd;
+  if (c < pullAt + 0.25) return mix(fwd, up, smooth(pullAt, pullAt + 0.25, c));
+  if (c < pullAt + 0.85) return up;
+  return mix(up, rest(), smooth(pullAt + 0.85, pullAt + 1.5, c));
+}
+
+function adultFish(t: number): BodyPose {
+  const p: BodyPose = { x: PEOPLE > 1 ? 0.75 : 0, z: -3.4, bob: 0, armL: rest(), armR: rest(), legL: legRest(), legR: legRest(), headYaw: 0 };
+  p.armR = fishArm(t, 0);
+  return p;
+}
+
+function childFish(t: number): BodyPose {
+  const p: BodyPose = { x: -0.75, z: -2.8, bob: 0, armL: rest(), armR: rest(), legL: legRest(), legR: legRest(), headYaw: 0 };
+  p.armL = fishArm(t, 2);
+  return p;
+}
+
 // ---------- 화면 ----------
 function resize(): void {
   const w = canvas.clientWidth;
@@ -410,8 +445,8 @@ resize();
 let t0 = performance.now();
 function frame(): void {
   const t = ((performance.now() - t0) / 1000) % DURATION;
-  adult.pose(SCRIPT === 'balloon' ? adultBalloon(t) : SCRIPT === 'wall' ? wallPose(t) : adultPose(t));
-  child?.pose(SCRIPT === 'balloon' ? childBalloon(t) : childPose(t));
+  adult.pose(SCRIPT === 'balloon' ? adultBalloon(t) : SCRIPT === 'wall' ? wallPose(t) : SCRIPT === 'fish' ? adultFish(t) : adultPose(t));
+  child?.pose(SCRIPT === 'balloon' ? childBalloon(t) : SCRIPT === 'fish' ? childFish(t) : childPose(t));
   bystander?.pose(bystanderPose(t));
   renderer.render(scene, camera);
   info.textContent = `${PEOPLE}명 · ${t.toFixed(1)}s / ${DURATION}s`;

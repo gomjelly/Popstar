@@ -5,29 +5,61 @@
     "hoverSelectMs": 1500,
     "lostPlayerPauseMs": 2000,
     "avatarStyle": "capsule",
-    "volume": { "music": 0.6, "sfx": 0.9 },
+    "volume": {
+      "music": 0.6,
+      "sfx": 0.9
+    },
     "avatarScreenHeight": 0.6,
     "menuAvatarScreenHeight": 0.42,
     "calibHoldMs": 2000,
     "twoPlayerColors": "pN",
     "smoothing": 0.5,
     "minVisibility": 0.5,
-    "cursorZone": { "width": 1.7, "height": 1.25, "outward": 0.35, "up": 0.25 },
+    "cursorZone": {
+      "width": 1.7,
+      "height": 1.25,
+      "outward": 0.35,
+      "up": 0.25
+    },
     "photoCountdownSec": 3,
     "detectPoses": 3,
     "renderScale": 1
   },
   "wall": {
-    "wallCount": { "min": 7, "max": 10 },
-    "grid": { "cols": 24, "rows": 26 },
-    "wallSize": { "heightRatio": 1.2, "widthRatio": 1.25 },
+    "wallCount": {
+      "min": 7,
+      "max": 10
+    },
+    "grid": {
+      "cols": 24,
+      "rows": 26
+    },
+    "wallSize": {
+      "heightRatio": 1.2,
+      "widthRatio": 1.25
+    },
     "playerScreenHeight": 0.6,
-    "approachSec": { "first": 5.5, "last": 3 },
+    "approachSec": {
+      "first": 5.5,
+      "last": 3
+    },
     "judgeWindowMs": 150,
-    "holeMarginBubbles": { "easy": 2.0, "normal": 1.4, "hard": 1.0 },
+    "holeMarginBubbles": {
+      "easy": 2,
+      "normal": 1.4,
+      "hard": 1
+    },
     "zeroScoreBubbles": 60,
-    "grades": { "perfect": 0, "great": 6, "good": 18 },
-    "fillGrades": { "perfect": 0.75, "great": 0.6, "good": 0.4 },
+    "grades": {
+      "perfect": 0,
+      "great": 6,
+      "good": 18
+    },
+    "fillGrades": {
+      "perfect": 0.75,
+      "great": 0.6,
+      "good": 0.4
+    },
     "zeroFill": 0.2,
     "snapshotMode": "photo",
     "difficulty": "normal",
@@ -40,18 +72,81 @@
     "maxLives": 5,
     "missesPerLife": 5,
     "sideStepRatio": 0.5,
-    "start": { "spawnIntervalMs": 450, "fallSpeed": 0.25, "bombRatio": 0.05, "balloonSize": 0.14 },
-    "perStage": { "spawnInterval": 0.88, "fallSpeed": 1.08, "bombRatioAdd": 0.02, "balloonSize": 0.95 },
-    "limits": { "minSpawnIntervalMs": 180, "maxFallSpeed": 0.7, "maxBombRatio": 0.2, "minBalloonSize": 0.09 },
-    "specialRatio": { "gold": 0.05, "heart": 0.015, "clock": 0.02, "star": 0.02, "bubble": 0.08 },
-    "points": { "normal": 10, "gold": 50, "bubble": 5, "giant": 40, "clearPerLife": 100 },
-    "combo": [ { "at": 5, "multiplier": 1.5 }, { "at": 10, "multiplier": 2.0 } ],
+    "start": {
+      "spawnIntervalMs": 450,
+      "fallSpeed": 0.25,
+      "bombRatio": 0.05,
+      "balloonSize": 0.14
+    },
+    "perStage": {
+      "spawnInterval": 0.88,
+      "fallSpeed": 1.08,
+      "bombRatioAdd": 0.02,
+      "balloonSize": 0.95
+    },
+    "limits": {
+      "minSpawnIntervalMs": 180,
+      "maxFallSpeed": 0.7,
+      "maxBombRatio": 0.2,
+      "minBalloonSize": 0.09
+    },
+    "specialRatio": {
+      "gold": 0.05,
+      "heart": 0.015,
+      "clock": 0.02,
+      "star": 0.02,
+      "bubble": 0.08
+    },
+    "points": {
+      "normal": 10,
+      "gold": 50,
+      "bubble": 5,
+      "giant": 40,
+      "clearPerLife": 100
+    },
+    "combo": [
+      {
+        "at": 5,
+        "multiplier": 1.5
+      },
+      {
+        "at": 10,
+        "multiplier": 2
+      }
+    ],
     "handRadius": 0.09,
-    "minGapArms": 1.0,
+    "minGapArms": 1,
     "windFromStage": 4,
     "windSpeed": 0.12,
     "slowSec": 3,
     "slowFactor": 0.4,
     "skyRatio": 0.5
+  },
+  "fishing": {
+    "roundSec": 90,
+    "flySec": 0.7,
+    "waitSec": {
+      "min": 1.5,
+      "max": 4.5
+    },
+    "riseSec": 1.1,
+    "peakSec": 0.45,
+    "fallSec": 0.9,
+    "nibblePerSec": 0.45,
+    "nibbleLevel": 0.25,
+    "tiers": {
+      "big": 0.85,
+      "mid": 0.6,
+      "small": 0.35
+    },
+    "showSec": 1.8,
+    "gesture": {
+      "castHigh": 0.45,
+      "castLow": 0.15,
+      "castMs": 800,
+      "pullHigh": 0.3,
+      "pullRise": 0.3,
+      "pullMs": 900
+    }
   }
 }

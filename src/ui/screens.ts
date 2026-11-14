@@ -1,7 +1,7 @@
 // 화면들: 메인, 게임 선택, 플레이어 선택, 플레이어 추가, 명예의 전당(틀), 보정, 아바타 확인, 설정.
 
 import { $, App, FLOOR_Y, type AvatarMode, type Screen } from '../app';
-import { GAMES, PLAYER_COLORS, config, gameInfo, type GameId } from '../config';
+import { FAMILIES, GAMES, PLAYER_COLORS, config, familyInfo, gameInfo, gamesOf, type FamilyId, type GameId } from '../config';
 import { MAX_NAME, addPlayer, autoColor, checkName, colorHex, listPlayers, nameLength, type PlayerRecord } from '../data/db';
 import { listHall } from '../data/hall';
 import { frameProblem, measure, type FrameProblem } from '../pose/body';
@@ -19,7 +19,14 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 };
 
-// ---------- 메인 ----------
+// ---------- 메인: 게임 종류 + 명예의 전당 + 설정 ----------
+
+/** 게임 종류를 고르면 인원 화면으로. 인원이 하나뿐인 게임(벽 뚫기)은 바로 플레이어 선택으로 */
+function openFamily(app: App, family: FamilyId): void {
+  const modes = gamesOf(family);
+  if (modes.length === 1) void app.go('select', modes[0].id);
+  else void app.go('games', family);
+}
 
 export class MainScreen implements Screen {
   readonly name = 'main' as const;
@@ -27,8 +34,17 @@ export class MainScreen implements Screen {
   readonly avatarMode = 'menu' as const;
   readonly backTo = null;
   constructor(private app: App) {
+    const box = $('familyCards');
+    for (const f of FAMILIES) {
+      const b = el('button', 'hov game-card family-card');
+      b.dataset.name = `family-${f.id}`;
+      b.append(el('span', 'ico', f.icon), el('span', 'name', f.name), el('span', 'desc', f.desc));
+      b.style.background = f.bg;
+      b.addEventListener('click', () => openFamily(this.app, f.id));
+      box.appendChild(b);
+    }
     this.el.querySelectorAll<HTMLButtonElement>('[data-go]').forEach((b) => {
-      b.addEventListener('click', () => void this.app.go(b.dataset.go as 'games'));
+      b.addEventListener('click', () => void this.app.go(b.dataset.go as 'hall'));
     });
   }
   enter(): void {
@@ -36,25 +52,32 @@ export class MainScreen implements Screen {
   }
 }
 
-// ---------- 게임 선택 ----------
+// ---------- 인원 고르기(1인 / 2인 협동 / 2인 대결) ----------
 
 export class GamesScreen implements Screen {
   readonly name = 'games' as const;
   readonly el = $('scr-games');
   readonly avatarMode = 'menu' as const;
   readonly backTo = 'main' as const;
-  constructor(private app: App) {
+  family: FamilyId = 'balloon';
+  constructor(private app: App) {}
+
+  enter(arg?: string): void {
+    if (arg && FAMILIES.some((f) => f.id === arg)) this.family = arg as FamilyId;
+    const fam = familyInfo(this.family);
+    $('modeTitle').textContent = `${fam.icon} ${fam.name} · 몇 명이 할까요?`;
     const box = $('gameCards');
-    for (const g of GAMES) {
-      const b = el('button', 'hov game-card');
+    box.innerHTML = '';
+    for (const g of gamesOf(this.family)) {
+      const b = el('button', 'hov game-card mode-card');
       b.dataset.name = `game-${g.id}`;
-      b.append(el('span', 'ico', g.icon), el('span', 'name', g.name), el('span', 'sub', g.sub));
-      b.style.background = g.id === 'wall' ? 'linear-gradient(160deg,#9b5cff,#5a2fd1)' : g.players === 1 ? 'linear-gradient(160deg,#ff6fc1,#e0368f)' : 'linear-gradient(160deg,#28d2e6,#1a8fd1)';
+      const who = g.players === 1 ? '🧍' : '🧑‍🤝‍🧑';
+      b.append(el('span', 'ico', who), el('span', 'sub', g.sub), el('span', 'name', g.players === 1 ? '혼자 해요' : g.versus ? '누가 더 잘하나!' : '둘이 힘을 합쳐요'));
+      b.style.background = g.players === 1 ? fam.bg : g.versus ? 'linear-gradient(160deg,#ff8a2a,#ff3b4e)' : 'linear-gradient(160deg,#2fcf6b,#1a9e52)';
       b.addEventListener('click', () => void this.app.go('select', g.id));
       box.appendChild(b);
     }
   }
-  enter(): void {}
 }
 
 // ---------- 플레이어 선택 (FR-PLY-05, 06) ----------
@@ -68,8 +91,12 @@ export class SelectScreen implements Screen {
   readonly name = 'select' as const;
   readonly el = $('scr-select');
   readonly avatarMode = 'menu' as const;
-  readonly backTo = 'games' as const;
   private game: GameId = 'balloon-1p';
+
+  /** 인원 화면을 거쳐 왔으면 그리로, 바로 왔으면(벽 뚫기) 메인으로 */
+  get backTo(): 'games' | 'main' {
+    return gamesOf(gameInfo(this.game).family).length > 1 ? 'games' : 'main';
+  }
   private picks: Pick[] = [];
   private photoUrls: string[] = [];
   constructor(private app: App) {
@@ -84,7 +111,7 @@ export class SelectScreen implements Screen {
     this.game = (arg as GameId) || this.game;
     this.picks = [];
     const info = gameInfo(this.game);
-    $('selectTitle').textContent = `${info.icon} ${info.players === 1 ? '누가 할까요?' : '두 명을 골라요'}`;
+    $('selectTitle').textContent = `${familyInfo(info.family).icon} ${info.name} ${info.sub} · ${info.players === 1 ? '누가 할까요?' : '두 명을 골라요'}`;
     await this.render();
   }
 
@@ -117,7 +144,7 @@ export class SelectScreen implements Screen {
       grid.appendChild(b);
     }
     if (!players.length) {
-      const hint = el('p', 'hint-line', '"플레이어 추가"에서 사진을 찍으면 여기에 나와요');
+      const hint = el('p', 'hint-line', '"✏️ 플레이어 관리"의 ➕에서 사진을 찍으면 여기에 나와요');
       hint.style.width = '100%';
       hint.style.textAlign = 'center';
       grid.appendChild(hint);
@@ -176,7 +203,7 @@ export class SelectScreen implements Screen {
     if (this.picks.length < this.need) return;
     this.app.startSession(this.game, this.picks.map((p) => p.player));
     this.app.sound.play('go');
-    // 풍선 게임은 자기 보정(양팔 펴기)을 하고, 벽 게임은 3단계 전까지 공통 보정 → 아바타 확인
+    // 풍선 게임은 자기 보정(양팔 펴기)을 하고, 벽·낚시는 공통 보정 뒤 게임으로
     void this.app.go(this.game.startsWith('balloon') ? 'balloon' : 'calib');
   }
 }
@@ -495,7 +522,14 @@ export class HallScreen implements Screen {
 
   constructor(app: App) {
     const tabs = $('hallTabs');
-    const labels: Record<GameId, string> = { wall: '벽 뚫기', 'balloon-1p': '풍선 1인', 'balloon-coop': '풍선 2인 협동', 'balloon-versus': '풍선 2인 대결' };
+    const labels: Record<GameId, string> = {
+      wall: '벽 뚫기',
+      'balloon-1p': '풍선 1인',
+      'balloon-coop': '풍선 2인 협동',
+      'balloon-versus': '풍선 2인 대결',
+      'fish-1p': '낚시 1인',
+      'fish-versus': '낚시 2인 대결',
+    };
     for (const g of GAMES) {
       const b = el('button', 'hov tab', labels[g.id]);
       b.dataset.name = `tab-${g.id}`;
@@ -546,7 +580,8 @@ export class HallScreen implements Screen {
     const podium = $('hallPodium');
     podium.innerHTML = '';
     const isBalloon = game.startsWith('balloon');
-    const versus = game === 'balloon-versus';
+    const versus = gameInfo(game).versus;
+    const isFish = game.startsWith('fish');
     const date = (iso: string) => {
       const d = new Date(iso);
       return `${d.getMonth() + 1}월 ${d.getDate()}일`;
@@ -574,7 +609,7 @@ export class HallScreen implements Screen {
       if (r) {
         const score = versus ? r.scores.join(' : ') : String(r.score);
         pod.appendChild(el('div', 'pod-score', `${score}점`));
-        pod.appendChild(el('div', 'pod-date', `${date(r.playedAt)}${isBalloon ? ` · 스테이지 ${r.stage}` : ''}`));
+        pod.appendChild(el('div', 'pod-date', `${date(r.playedAt)}${isBalloon ? ` · 스테이지 ${r.stage}` : isFish ? ` · ${r.stage}마리` : ''}`));
       }
       pod.appendChild(el('div', 'pod-block', String(rank)));
       podium.appendChild(pod);
@@ -653,7 +688,7 @@ export class CalibScreen implements Screen {
     $('calibSilhouette').hidden = false;
     const s = this.app.session;
     const n = s?.participants.length ?? 1;
-    $('calibTitle').textContent = n === 1 ? '준비 자세 · 다리는 어깨너비, 팔은 내리고' : '준비 자세 · 둘이 나란히 서요';
+    $('calibTitle').textContent = n === 1 ? '준비 자세 · 다리는 어깨너비, 팔은 내리고' : '준비 자세 · 둘이 나란히 서요 (조금 떨어져서)';
     $('calibSilhouette').innerHTML = silhouetteSvg(n);
     $('calibBar').style.width = '0%';
   }
@@ -746,6 +781,10 @@ export class CalibScreen implements Screen {
       this.app.log(`calibrated P${i + 1} height=${height.toFixed(3)} scale=${scale.toFixed(3)} x=${s.transforms[i].to.x.toFixed(2)}`);
     });
     this.app.sound.play('cheer');
+    if (this.app.session?.game.startsWith('fish')) {
+      void this.app.go('fishing');
+      return;
+    }
     if (!this.isWall) {
       void this.app.go('play');
       return;

@@ -17,7 +17,7 @@ import type { BodyProfile } from './game/wall/geometry';
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'balloon' | 'wall' | 'players' | 'settings';
+export type RouteName = 'main' | 'games' | 'select' | 'add-player' | 'hall' | 'calib' | 'play' | 'balloon' | 'wall' | 'fishing' | 'players' | 'settings';
 
 /** 화면마다 아바타를 어떻게 그릴지 */
 export type AvatarMode = 'menu' | 'calib' | 'game' | 'none';
@@ -200,11 +200,12 @@ export class App {
     this.setPaused(false);
     this.tracker.mode = name === 'play' ? 'game' : 'menu';
     // 게임·보정 화면에서는 참가 인원만 추적한다(구경꾼 무시). 사진 찍기는 한 명.
-    const gameScreen = name === 'calib' || name === 'play' || name === 'balloon' || name === 'wall';
+    const gameScreen = name === 'calib' || name === 'play' || name === 'balloon' || name === 'wall' || name === 'fishing';
     this.tracker.limit =
       gameScreen && this.session ? this.session.participants.length : name === 'add-player' ? 1 : config.common.maxPlayers;
     $('backBtn').hidden = !next.backTo;
-    $('gearBtn').hidden = name !== 'main';
+    // 설정은 메인 화면의 ⚙️ 설정 버튼으로 연다(구석 톱니는 쓰지 않음)
+    $('gearBtn').hidden = true;
     this.hover.hideAll();
     this.hover.suppress();
     this.log(`screen ${name}${arg ? `:${arg}` : ''}`);

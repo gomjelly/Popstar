@@ -10,6 +10,7 @@ import { SettingsScreen } from './ui/settings';
 import { BalloonScreen } from './ui/balloonScreen';
 import { WallScreen } from './ui/wallScreen';
 import { PlayersScreen } from './ui/playersScreen';
+import { FishingScreen } from './ui/fishingScreen';
 
 /** 검증용: 시험 플레이어를 만들었으면 손님 대신 그 플레이어로 시작한다 */
 let seeded = false;
@@ -32,6 +33,8 @@ async function boot(): Promise<void> {
   app.register(new PlayersScreen(app));
   const wall = new WallScreen(app);
   app.register(wall);
+  const fishing = new FishingScreen(app);
+  app.register(fishing);
   app.register(settings);
 
   $('backBtn').addEventListener('click', () => app.back());
@@ -91,6 +94,7 @@ async function boot(): Promise<void> {
 
   if (test?.botHands) app.testBot = true;
   if (test?.botOnly) app.testBotOnly = true;
+  if (test?.botHands) fishing.testBot = true;
   if (test?.wallPoses) wall.testPoses = test.wallPoses.split(',').map((x) => x.trim()).filter(Boolean);
   // 자동 실행(--start)에서는 확인 버튼(보정 결과 등)을 잠시 뒤 자동으로 누른다
   if (test?.startRoute) app.testAuto = true;
@@ -271,8 +275,8 @@ async function setupTestHooks(
     const [route, arg] = startRoute.split(':');
     const game = (GAMES.some((g) => g.id === arg) ? arg : 'balloon-coop') as GameId;
     if (route === 'select') await app.go('select', game);
-    else if (route === 'calib' || route === 'play' || route === 'balloon') {
-      await app.go('games');
+    else if (route === 'calib' || route === 'play' || route === 'balloon' || route === 'fishing') {
+      await app.go('games', GAMES.find((g) => g.id === game)?.family);
       await app.go('select', game);
       if (seeded) await select.fillPlayers();
       else select.fillGuests();

@@ -1,7 +1,7 @@
 // 게임이 끝나면 명예의 전당에 자동 등록하고(이름 입력 없음), 3위 안이면 결과 화면에서 축하한다(FR-WALL-41, FR-BAL-31).
 
 import type { App, Participant } from '../app';
-import { addHall } from '../data/hall';
+import { addHall, listHall } from '../data/hall';
 
 export interface FinishedGame {
   game: string;
@@ -9,6 +9,8 @@ export interface FinishedGame {
   /** 1인·협동: [총점], 대결: [P1, P2] */
   scores: number[];
   stage: number;
+  /** 대결: 사람마다 따로인 단계 값(낚시는 각자 잡은 수). 없으면 stage */
+  stages?: number[];
   playId: string;
 }
 
@@ -55,29 +57,41 @@ export async function registerHall(app: App, g: FinishedGame, el: HTMLElement): 
 async function registerVersus(app: App, g: FinishedGame, el: HTMLElement): Promise<number | null> {
   const msgs: string[] = [];
   let best: number | null = null;
+  const added: { id: string; name: string }[] = [];
   for (const [i, p] of g.participants.entries()) {
     if (!p.player) continue;
     try {
+      const id = crypto.randomUUID();
       const rank = await addHall({
-        id: crypto.randomUUID(),
+        id,
         game: g.game,
         playerIds: [p.player.id],
         names: [p.name],
         colors: [p.color],
         score: g.scores[i],
         scores: [g.scores[i]],
-        stage: g.stage,
+        stage: g.stages?.[i] ?? g.stage,
         playedAt: new Date().toISOString(),
         playId: g.playId,
       });
       app.log(`hall ${g.game} ${p.name} score=${g.scores[i]} rank=${rank ?? '-'}`);
-      if (rank && rank <= 3) {
-        msgs.push(`${rank === 1 ? '👑' : '🏆'} ${p.name} ${rank}위`);
-        best = best === null ? rank : Math.min(best, rank);
-      }
+      if (rank) added.push({ id, name: p.name });
     } catch (err) {
       console.warn('명예의 전당 저장 실패', err);
     }
+  }
+  // 둘 다 등록한 뒤의 최종 순위로 알린다(먼저 넣은 사람이 뒤에 넣은 사람에게 밀릴 수 있음)
+  try {
+    const rows = await listHall(g.game);
+    for (const a of added) {
+      const rank = rows.findIndex((r) => r.id === a.id) + 1;
+      if (rank >= 1 && rank <= 3) {
+        msgs.push(`${rank === 1 ? '👑' : '🏆'} ${a.name} ${rank}위`);
+        best = best === null ? rank : Math.min(best, rank);
+      }
+    }
+  } catch (err) {
+    console.warn('명예의 전당 순위 확인 실패', err);
   }
   if (msgs.length) {
     el.className = 'hall-msg top';

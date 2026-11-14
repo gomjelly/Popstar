@@ -25,7 +25,9 @@ function write(key: string, value: string): void {
 export type SfxName =
   | 'hover' | 'select' | 'back' | 'beep' | 'go' | 'shutter' | 'cheer' | 'error' | 'pause' | 'join'
   // 풍선 게임
-  | 'pop' | 'bomb' | 'gold' | 'heart' | 'clock' | 'star' | 'bubble' | 'miss' | 'lifeLost' | 'stageClear' | 'gameOver';
+  | 'pop' | 'bomb' | 'gold' | 'heart' | 'clock' | 'star' | 'bubble' | 'miss' | 'lifeLost' | 'stageClear' | 'gameOver'
+  // 낚시
+  | 'cast' | 'splash' | 'nibble' | 'bite';
 export type MusicName = 'menu' | 'balloon';
 
 interface AudioManifest {
@@ -254,6 +256,21 @@ export class Sound {
         break;
       case 'stageClear':
         [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, t + i * 0.1, 0.25, 'triangle', 0.22));
+        break;
+      case 'cast':
+        this.noiseBurst(t, 0.3, 0.25, 2500);
+        this.tone(500, t, 0.3, 'sine', 0.1, 1400);
+        break;
+      case 'splash':
+        this.noiseBurst(t, 0.4, 0.45, 300);
+        this.tone(320, t, 0.15, 'sine', 0.12, 110);
+        break;
+      case 'nibble':
+        this.tone(420, t, 0.05, 'sine', 0.12, 300);
+        break;
+      case 'bite':
+        this.tone(220, t, 0.1, 'square', 0.1, 160);
+        this.tone(220, t + 0.13, 0.1, 'square', 0.1, 160);
         break;
       case 'gameOver':
         [523, 466, 415, 349].forEach((f, i) => this.tone(f, t + i * 0.22, 0.35, 'triangle', 0.22));

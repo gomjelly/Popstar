@@ -15,19 +15,18 @@
       <!-- ===== 메인 (FR-MAIN-01) ===== -->
       <section class="screen" id="scr-main" hidden>
         <h1 class="logo">Popstar<span>★</span></h1>
-        <div class="big-buttons">
-          <button class="hov big b-game" data-name="game" data-go="games"><span class="ico">🎮</span><span>게임</span></button>
-          <button class="hov big b-hall" data-name="hall" data-go="hall"><span class="ico">🏆</span><span>명예의 전당</span></button>
-          <button class="hov big b-add" data-name="add-player" data-go="add-player"><span class="ico">📸</span><span>플레이어 추가</span></button>
+        <div id="familyCards" class="cards family-cards"></div>
+        <div class="row center main-sub">
+          <button class="hov mid b-hall" data-name="hall" data-go="hall">🏆 명예의 전당</button>
+          <button class="hov mid b-settings" data-name="settings-main" data-go="settings">⚙️ 설정</button>
         </div>
         <div class="safety">⚠️ 주변의 가구·장난감을 치우고, 카메라에서 2~3걸음 떨어져 서요</div>
-        <p class="hint-line">마우스·키보드로 골라요 · 왼쪽 아래 🖐 손 조작을 켜면 손을 들어 버튼 위에 잠깐 멈춰도 골라져요</p>
       </section>
 
       <!-- ===== 게임 선택 ===== -->
       <section class="screen" id="scr-games" hidden>
-        <h2 class="title">어떤 게임을 할까요?</h2>
-        <div id="gameCards" class="cards"></div>
+        <h2 class="title" id="modeTitle">몇 명이 할까요?</h2>
+        <div id="gameCards" class="cards mode-cards"></div>
       </section>
 
       <!-- ===== 플레이어 선택 (FR-PLY-05, 06) ===== -->
@@ -182,6 +181,31 @@
             <div class="row center">
               <button class="hov mid primary" id="wrAgain" data-name="again">🔄 다시 하기</button>
               <button class="hov mid" id="wrHome" data-name="home">🏠 처음으로</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 낚시 ===== -->
+      <section class="screen" id="scr-fishing" hidden>
+        <canvas id="fishCanvas" class="fish-canvas"></canvas>
+        <div class="bhud">
+          <div class="bh-left"><div id="fhP1" class="fh-player"></div></div>
+          <div class="bh-center"><div id="fhTime" class="time"></div></div>
+          <div class="bh-right"><div id="fhP2" class="fh-player"></div></div>
+        </div>
+        <button class="small b-pause" id="fPause">⏸ 멈춤 (Space)</button>
+        <div id="fBanner" class="banner" hidden></div>
+        <div id="fResult" class="overlay result" hidden>
+          <div class="overlay-card">
+            <h2 id="frTitle">낚시 끝!</h2>
+            <div id="frScore" class="br-score"></div>
+            <div id="frInfo" class="br-info"></div>
+            <div id="frList" class="f-list"></div>
+            <div id="frHall" class="hall-msg"></div>
+            <div class="row center">
+              <button class="hov mid primary" id="frAgain" data-name="again">🔄 다시 하기</button>
+              <button class="hov mid" id="frHome" data-name="home">🏠 처음으로</button>
             </div>
           </div>
         </div>
