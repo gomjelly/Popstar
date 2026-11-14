@@ -36,6 +36,8 @@ interface Angler {
   /** 검증용 봇: 당길 게이지 값, 기다린 시간 */
   botAim: number;
   botWait: number;
+  /** 다른 손으로 당겼을 때 안내를 보여 줄 때까지(clock 초) */
+  warnUntil: number;
 }
 
 export class FishingScreen implements Screen {
@@ -94,6 +96,7 @@ export class FishingScreen implements Screen {
       ripples: [],
       botAim: 0.95,
       botWait: 0,
+      warnUntil: 0,
     }));
     this.clock = 0;
     this.startedAt = new Date().toISOString();
@@ -173,7 +176,8 @@ export class FishingScreen implements Screen {
     if (slot?.present && slot.pts) {
       const p = slot.pts;
       const m = measure(p, config.common.minVisibility);
-      const h = (sh: number, wr: number) => (p[wr].v >= 0.3 ? handHeight(p[sh].y, p[wr].y, m.torso) : null);
+      // 빠르게 휘두르면 손목이 흐려져 visibility가 낮게 나온다: 낮아도 위치는 쓸 만해서 문턱을 낮게 둔다
+      const h = (sh: number, wr: number) => (p[wr].v >= 0.1 ? handHeight(p[sh].y, p[wr].y, m.torso) : null);
       const sample = { left: h(LM.leftShoulder, LM.leftWrist), right: h(LM.rightShoulder, LM.rightWrist) };
       gestures = a.gesture.push(now, sample, a.rod.want);
     }
@@ -221,6 +225,11 @@ export class FishingScreen implements Screen {
         break;
       case 'bite':
         snd.play('bite');
+        break;
+      case 'wrongArm':
+        a.warnUntil = this.clock + 1.5;
+        snd.play('error');
+        this.app.log(`F${i + 1} wrong arm`);
         break;
       case 'escape':
         snd.play('miss');
@@ -544,16 +553,19 @@ export class FishingScreen implements Screen {
 
   // ---------- HUD·결과 ----------
 
-  private hint(r: Rod): string {
+  private hint(a: Angler): string {
+    const r = a.rod;
+    const hand = r.arm === 'left' ? '왼손' : '오른손';
+    if (this.clock < a.warnUntil && (r.state === 'waiting' || r.state === 'bite')) return `✋ 던진 ${hand}으로 당겨요!`;
     switch (r.state) {
       case 'ready':
         return '🙌 손을 머리 위로 → 앞으로 휘둘러 던져요';
       case 'flying':
         return '휙~';
       case 'waiting':
-        return r.gauge > 0 ? '톡톡… 아직이에요!' : '가만히 기다려요…';
+        return r.gauge > 0 ? '톡톡… 아직이에요!' : `가만히 기다려요… (${hand}으로 당겨요)`;
       case 'bite':
-        return r.gauge >= config.fishing.tiers.big ? '💪 지금! 팔을 접어 당겨요!' : '찌가 들어가요… 꼭대기에서 당겨요';
+        return r.gauge >= config.fishing.tiers.big ? `💪 지금! ${hand}을 접어 당겨요!` : '찌가 들어가요… 꼭대기에서 당겨요';
       case 'show':
         return r.last ? `${r.last.icon} ${r.last.name}${r.last.points ? ` +${r.last.points}` : ''}` : '';
     }
@@ -565,7 +577,7 @@ export class FishingScreen implements Screen {
     const html = this.anglers.map((a, i) => {
       const p = parts[i];
       const name = p ? `${parts.length > 1 ? `<b style="color:${p.color}">P${i + 1}</b> ` : ''}${escapeHtml(p.name)}` : '';
-      return `<div class="fh-name">${name} <span class="fh-score">${a.rod.score}점</span></div><div class="fh-hint">${this.hint(a.rod)}</div>`;
+      return `<div class="fh-name">${name} <span class="fh-score">${a.rod.score}점</span></div><div class="fh-hint">${this.hint(a)}</div>`;
     });
     const set = (k: number, el: HTMLElement, v: string) => {
       if (this.hudCache[k] !== v) {

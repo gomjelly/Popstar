@@ -82,6 +82,31 @@ test('꼭대기에서 당기면 대어', () => {
   assert.equal(rod.state, 'ready');
 });
 
+test('던진 손으로만 당길 수 있음', () => {
+  const rod = new Rod(P, seq(0.99));
+  step(rod, 0.016, [{ type: 'cast', arm: 'left', power: 0.5 }]);
+  step(rod, P.flySec + 0.01);
+  for (let i = 0; i < 400 && rod.state === 'waiting'; i++) step(rod, 0.016);
+  step(rod, P.riseSec + 0.05);
+  const wrong = step(rod, 0.016, [{ type: 'pull', arm: 'right' }]);
+  assert.ok(wrong.some((e) => e.type === 'wrongArm'));
+  assert.equal(rod.state, 'bite', '다른 손은 무시');
+  const ok = step(rod, 0.016, [{ type: 'pull', arm: 'left' }]);
+  const c = ok.find((e) => e.type === 'catch');
+  assert.ok(c && c.type === 'catch' && c.catch.tier === 'big');
+});
+
+test('팔을 끝까지 안 내려도 빠르게 휘두르면 던지기', () => {
+  const g = new ArmGesture(P.gesture);
+  // 머리 위(1.2)에서 어깨 조금 위(0.5)까지만 0.2초에 휘두름
+  const ev = run(g, 900, (t) => (t < 400 ? 1.2 * (t / 400) : t < 600 ? 1.2 - 0.7 * ((t - 400) / 200) : 0.5), 'cast');
+  assert.equal(ev.filter((e) => e.type === 'cast').length, 1);
+  // 같은 높이를 2초에 걸쳐 천천히 내리면 던지지 않음
+  const g2 = new ArmGesture(P.gesture);
+  const slow = run(g2, 3000, (t) => (t < 400 ? 1.2 * (t / 400) : 1.2 - 0.7 * Math.min(1, (t - 400) / 2000)), 'cast');
+  assert.equal(slow.filter((e) => e.type === 'cast').length, 0);
+});
+
 test('너무 빨리 당기면 쓰레기, 늦으면 도망가고 다시 기다림', () => {
   const rod = new Rod(P, seq(0.99));
   step(rod, 0.016, [{ type: 'cast', arm: 'left', power: 0 }]);

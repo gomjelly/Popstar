@@ -24,8 +24,12 @@ export interface FishParams {
   tiers: { big: number; mid: number; small: number };
   /** 잡은 뒤 다음 던지기까지 */
   showSec: number;
-  /** 동작 인식(몸통 길이 단위, 어깨 기준 손 높이) */
-  gesture: { castHigh: number; castLow: number; castMs: number; pullHigh: number; pullRise: number; pullMs: number };
+  /**
+   * 동작 인식(몸통 길이 단위, 어깨 기준 손 높이).
+   * 던지기 = castMs 안에 castHigh 위까지 들었던 손이 castDrop 넘게 빠르게 내려옴.
+   * 당기기 = pullMs 안에 pullRise 넘게 올라 pullHigh 위.
+   */
+  gesture: { castHigh: number; castDrop: number; castMs: number; pullHigh: number; pullRise: number; pullMs: number };
 }
 
 export const DEFAULT_FISH: FishParams = {
@@ -39,7 +43,7 @@ export const DEFAULT_FISH: FishParams = {
   nibbleLevel: 0.32,
   tiers: { big: 0.9, mid: 0.65, small: 0.4 },
   showSec: 1.8,
-  gesture: { castHigh: 0.45, castLow: 0.15, castMs: 800, pullHigh: 0.3, pullRise: 0.3, pullMs: 900 },
+  gesture: { castHigh: 0.3, castDrop: 0.4, castMs: 1000, pullHigh: 0.1, pullRise: 0.2, pullMs: 1000 },
 };
 
 // ---------- 잡히는 것 ----------
@@ -144,6 +148,7 @@ export type GestureEvent = { type: 'cast'; arm: Arm; power: number } | { type: '
 /** 한 사람의 손 높이 기록으로 던지기·당기기를 찾는다 */
 export class ArmGesture {
   private hist: { t: number; left: number | null; right: number | null }[] = [];
+  private cool: Record<Arm, number> = { left: -Infinity, right: -Infinity };
   private g: FishParams['gesture'];
 
   constructor(g: FishParams['gesture']) {
@@ -152,6 +157,7 @@ export class ArmGesture {
 
   reset(): void {
     this.hist = [];
+    this.cool = { left: -Infinity, right: -Infinity };
   }
 
   /** want = 지금 찾을 동작(던질 때 cast, 기다릴 때 pull, 그 밖에는 기록만) */
@@ -163,18 +169,26 @@ export class ArmGesture {
     const out: GestureEvent[] = [];
     for (const arm of ['right', 'left'] as Arm[]) {
       const now = s[arm];
-      if (now === null || !want) continue;
-      // 던지기: castMs 안에 castHigh 위에 있었고 지금 castLow 아래
-      if (want === 'cast' && now <= g.castLow) {
+      if (now === null || !want || t < this.cool[arm]) continue;
+      // 던지기: castMs 안에 castHigh 위에 있던 손이 그때보다 castDrop 넘게 내려옴(끝까지 안 내려도 됨)
+      if (want === 'cast') {
         let peak: { t: number; h: number } | null = null;
         for (const q of this.hist) {
           const h = q[arm];
           if (h === null || t - q.t > g.castMs) continue;
           if (h >= g.castHigh && (!peak || h > peak.h)) peak = { t: q.t, h };
         }
-        if (peak) {
-          const sec = Math.max(0.05, (t - peak.t) / 1000);
-          const speed = (peak.h - now) / sec; // 몸통 길이/초
+        if (peak && peak.h - now >= g.castDrop) {
+          // 빠르기는 실제로 휘두른 구간으로 잰다: 꼭대기 근처(0.1 안)에 머물던 마지막 때부터
+          let from = { t: peak.t, h: peak.h };
+          for (const q of this.hist) {
+            const h = q[arm];
+            if (h !== null && q.t >= peak.t && h >= peak.h - 0.1) from = { t: q.t, h };
+          }
+          const sec = Math.max(0.033, (t - from.t) / 1000);
+          const speed = (from.h - now) / sec; // 몸통 길이/초
+          // 들었던 손을 천천히 내리는 것은 던지기가 아니다
+          if (speed < 0.8) continue;
           out.push({ type: 'cast', arm, power: Math.max(0, Math.min(1, (speed - 1) / 6)) });
           this.clear(arm);
           continue;
@@ -198,6 +212,8 @@ export class ArmGesture {
 
   /** 한 번 쓴 동작은 기록에서 지워 같은 동작으로 두 번 잡히지 않게 */
   private clear(arm: Arm): void {
+    // 같은 손으로 바로 또 잡히지 않게 잠깐 쉰다
+    this.cool[arm] = this.hist[this.hist.length - 1].t + 500;
     for (const q of this.hist) q[arm] = null;
   }
 }
@@ -212,6 +228,8 @@ export type RodEvent =
   | { type: 'nibble' }
   | { type: 'bite' }
   | { type: 'escape' }
+  /** 던진 손이 아닌 손으로 당겼다(무시) */
+  | { type: 'wrongArm' }
   | { type: 'catch'; catch: Catch; early: boolean };
 
 export class Rod {
@@ -251,7 +269,9 @@ export class Rod {
     const ev: RodEvent[] = [];
     this.t += dt;
     const cast = gestures.find((g): g is Extract<GestureEvent, { type: 'cast' }> => g.type === 'cast');
-    const pull = gestures.some((g) => g.type === 'pull');
+    // 당기기는 던진 손으로만(다른 손으로 당기면 무시하고 알려 준다)
+    const pull = gestures.some((g) => g.type === 'pull' && g.arm === this.arm);
+    if ((this.state === 'waiting' || this.state === 'bite') && !pull && gestures.some((g) => g.type === 'pull')) ev.push({ type: 'wrongArm' });
 
     switch (this.state) {
       case 'ready':

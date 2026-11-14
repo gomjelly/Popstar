@@ -141,12 +141,12 @@
     },
     "showSec": 1.8,
     "gesture": {
-      "castHigh": 0.45,
-      "castLow": 0.15,
-      "castMs": 800,
-      "pullHigh": 0.3,
-      "pullRise": 0.3,
-      "pullMs": 900
+      "castHigh": 0.3,
+      "castDrop": 0.4,
+      "castMs": 1000,
+      "pullHigh": 0.1,
+      "pullRise": 0.2,
+      "pullMs": 1000
     }
   }
 }
